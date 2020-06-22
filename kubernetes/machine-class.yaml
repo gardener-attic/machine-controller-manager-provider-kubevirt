@@ -1,0 +1,15 @@
+apiVersion: machine.sapcloud.io/v1alpha1
+kind: MachineClass
+metadata:
+  name: test-mc
+  namespace: default # Namespace where the controller would watch
+providerSpec:
+  storageClassName: test-storage-class
+  pvcSize: "10Gi"
+  sourceURL: source-image-url
+  cpus: "1"
+  memory: "4096M"
+  namespace: default
+secretRef: # If required
+  name: test-secret
+  namespace: default # Namespace where the controller would watch
