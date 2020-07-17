@@ -1,5 +1,5 @@
 ///*
-//Copyright (c) 2019 SAP SE or an SAP affiliate company. All rights reserved.
+//Copyright (c) 2020 SAP SE or an SAP affiliate company. All rights reserved.
 //
 //Licensed under the Apache License, Version 2.0 (the "License");
 //you may not use this file except in compliance with the License.
@@ -20,14 +20,15 @@ package validation
 import (
 	"errors"
 	"fmt"
-	"github.com/moadqassem/machine-controller-manager-provider-kubevirt/pkg/kubevirt/util"
-	"gopkg.in/yaml.v2"
-	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/client-go/tools/clientcmd"
 
-	api "github.com/moadqassem/machine-controller-manager-provider-kubevirt/pkg/kubevirt/apis"
+	"gopkg.in/yaml.v2"
+
+	api "github.com/gardener/machine-controller-manager-provider-kubevirt/pkg/kubevirt/apis"
+	"github.com/gardener/machine-controller-manager-provider-kubevirt/pkg/kubevirt/util"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 // ValidateProviderSpecNSecret validates kubevirt spec and secret to check if all fields are present and valid

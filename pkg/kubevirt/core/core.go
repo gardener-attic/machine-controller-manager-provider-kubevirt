@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2019 SAP SE or an SAP affiliate company. All rights reserved.
+Copyright (c) 2020 SAP SE or an SAP affiliate company. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,17 +20,17 @@ package core
 import (
 	"context"
 	"fmt"
-	clouderrors "github.com/moadqassem/machine-controller-manager-provider-kubevirt/pkg/kubevirt/errors"
-	"github.com/moadqassem/machine-controller-manager-provider-kubevirt/pkg/kubevirt/util"
 	"strconv"
 	"time"
 
 	"gopkg.in/yaml.v2"
 
-	api "github.com/moadqassem/machine-controller-manager-provider-kubevirt/pkg/kubevirt/apis"
-
 	kubevirtv1 "kubevirt.io/client-go/api/v1"
 	cdi "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+
+	api "github.com/gardener/machine-controller-manager-provider-kubevirt/pkg/kubevirt/apis"
+	clouderrors "github.com/gardener/machine-controller-manager-provider-kubevirt/pkg/kubevirt/errors"
+	"github.com/gardener/machine-controller-manager-provider-kubevirt/pkg/kubevirt/util"
 
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -38,6 +38,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/klog"
 	utilpointer "k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -49,7 +50,6 @@ const ProviderName = "kubevirt"
 type PluginSPIImpl struct{}
 
 func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, providerSpec *api.KubeVirtProviderSpec, secrets *corev1.Secret) (providerID string, err error) {
-	//TODO(MQ): adding support for ignition.
 	requestsAndLimits, err := util.ParseResources(providerSpec.CPUs, providerSpec.Memory)
 	if err != nil {
 		return "", err
@@ -198,6 +198,10 @@ func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, pr
 func (p PluginSPIImpl) DeleteMachine(ctx context.Context, machineName, providerID string, providerSpec *api.KubeVirtProviderSpec, secrets *corev1.Secret) (foundProviderID string, err error) {
 	vm, err := getVM(secrets, machineName, providerSpec.Namespace)
 	if err != nil {
+		if clouderrors.IsMachineNotFoundError(err) {
+			klog.V(2).Infof("skip vm evicting, vm instance %s is not found", machineName)
+			return "", nil
+		}
 		return "", err
 	}
 

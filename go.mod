@@ -1,4 +1,4 @@
-module github.com/moadqassem/machine-controller-manager-provider-kubevirt
+module github.com/gardener/machine-controller-manager-provider-kubevirt
 
 go 1.13
 

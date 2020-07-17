@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2019 SAP SE or an SAP affiliate company. All rights reserved.
+Copyright (c) 2020 SAP SE or an SAP affiliate company. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,11 +20,12 @@ package kubevirt
 import (
 	"context"
 	"fmt"
+
+	"github.com/gardener/machine-controller-manager-provider-kubevirt/pkg/kubevirt/util"
+	"github.com/gardener/machine-controller-manager-provider-kubevirt/pkg/kubevirt/validation"
 	"github.com/gardener/machine-controller-manager/pkg/util/provider/driver"
 	"github.com/gardener/machine-controller-manager/pkg/util/provider/machinecodes/codes"
 	"github.com/gardener/machine-controller-manager/pkg/util/provider/machinecodes/status"
-	"github.com/moadqassem/machine-controller-manager-provider-kubevirt/pkg/kubevirt/util"
-	"github.com/moadqassem/machine-controller-manager-provider-kubevirt/pkg/kubevirt/validation"
 
 	"k8s.io/klog"
 )

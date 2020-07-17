@@ -1,18 +1,8 @@
 package errors
 
 import (
-	"errors"
 	"fmt"
 )
-
-var (
-	// ErrInstanceNotFound tells that the requested instance was not found on the cloud provider
-	ErrInstanceNotFound = errors.New("instance not found")
-)
-
-func IsNotFound(err error) bool {
-	return err == ErrInstanceNotFound
-}
 
 // MachineNotFoundError is used to indicate not found error in PluginSPI
 type MachineNotFoundError struct {
@@ -24,4 +14,13 @@ type MachineNotFoundError struct {
 
 func (e *MachineNotFoundError) Error() string {
 	return fmt.Sprintf("machine name=%s, uuid=%s not found", e.Name, e.MachineID)
+}
+
+func IsMachineNotFoundError(err error) bool {
+	switch err.(type) {
+	case *MachineNotFoundError:
+		return true
+	default:
+		return false
+	}
 }

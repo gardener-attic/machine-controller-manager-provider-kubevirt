@@ -3,17 +3,19 @@ package util
 import (
 	"encoding/json"
 	"fmt"
+
+	"github.com/pkg/errors"
+
 	"github.com/gardener/machine-controller-manager/pkg/util/provider/machinecodes/codes"
 	"github.com/gardener/machine-controller-manager/pkg/util/provider/machinecodes/status"
 
+	api "github.com/gardener/machine-controller-manager-provider-kubevirt/pkg/kubevirt/apis"
+	clouderrors "github.com/gardener/machine-controller-manager-provider-kubevirt/pkg/kubevirt/errors"
 	"github.com/gardener/machine-controller-manager/pkg/apis/machine/v1alpha1"
-	api "github.com/moadqassem/machine-controller-manager-provider-kubevirt/pkg/kubevirt/apis"
-	clouderrors "github.com/moadqassem/machine-controller-manager-provider-kubevirt/pkg/kubevirt/errors"
-	"github.com/pkg/errors"
-	"k8s.io/klog"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/klog"
 )
 
 // DecodeProviderSpecAndSecret converts request parameters to api.ProviderSpec

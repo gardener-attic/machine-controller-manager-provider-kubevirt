@@ -1,5 +1,5 @@
 /*
-Copyright 2014 The Kubernetes Authors.
+Copyright 2020 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@ limitations under the License.
 This file was copied and modified from the kubernetes/kubernetes project
 https://github.com/kubernetes/kubernetes/release-1.8/cmd/kube-controller-manager/controller_manager.go
 
-Modifications Copyright (c) 2017 SAP SE or an SAP affiliate company. All rights reserved.
+Modifications Copyright (c) 2020 SAP SE or an SAP affiliate company. All rights reserved.
 */
 
 package main
@@ -25,7 +25,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/moadqassem/machine-controller-manager-provider-kubevirt/pkg/kubevirt"
+	"github.com/gardener/machine-controller-manager-provider-kubevirt/pkg/kubevirt"
 
 	_ "github.com/gardener/machine-controller-manager/pkg/util/client/metrics/prometheus" // for client metric registration
 	"github.com/gardener/machine-controller-manager/pkg/util/provider/app"
