@@ -14,9 +14,9 @@
 
 BINARY_PATH         := bin/
 COVERPROFILE        := test/output/coverprofile.out
-IMAGE_REPOSITORY    := <link-to-image-repo>
+IMAGE_REPOSITORY    := eu.gcr.io/gardener-project/gardener/machine-controller-manager-provider-kubevirt
 IMAGE_TAG           := $(shell cat VERSION)
-PROVIDER_NAME       := SampleProvider
+PROVIDER_NAME       := KubeVirt
 PROJECT_NAME        := gardener
 CONTROL_NAMESPACE  := default
 CONTROL_KUBECONFIG := dev/target-kubeconfig.yaml
