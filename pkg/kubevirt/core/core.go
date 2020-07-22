@@ -47,7 +47,9 @@ const ProviderName = "kubevirt"
 
 // PluginSPIImpl is the real implementation of PluginSPI interface
 // that makes the calls to the provider SDK
-type PluginSPIImpl struct{}
+type PluginSPIImpl struct {
+	client client.Client
+}
 
 func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, providerSpec *api.KubeVirtProviderSpec, secrets *corev1.Secret) (providerID string, err error) {
 	requestsAndLimits, err := util.ParseResources(providerSpec.CPUs, providerSpec.Memory)
@@ -168,12 +170,15 @@ func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, pr
 		},
 	}
 
-	kubevirtClient, err := kubevirtClient(secrets)
-	if err != nil {
-		return "", fmt.Errorf("failed to get kubevirt client: %v", err)
+	if p.client == nil {
+		kubevirtClient, err := kubevirtClient(secrets)
+		if err != nil {
+			return "", fmt.Errorf("failed to get kubevirt client: %v", err)
+		}
+		p.client = kubevirtClient
 	}
 
-	if err := kubevirtClient.Create(ctx, virtualMachine); err != nil {
+	if err := p.client.Create(ctx, virtualMachine); err != nil {
 		return "", fmt.Errorf("failed to create vmi: %v", err)
 	}
 
@@ -186,17 +191,17 @@ func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, pr
 		Data: map[string][]byte{"userdata": []byte(secrets.Data["userData"])},
 	}
 
-	if err := kubevirtClient.Create(ctx, secret); err != nil {
+	if err := p.client.Create(ctx, secret); err != nil {
 		return "", fmt.Errorf("failed to create secret for userdata: %v", err)
 	}
 
 	// TODO(MQ): do we really need this? another approach is to return an empty provider id and leave it to the
 	// Get
-	return machineProviderID(secrets, machineName, providerSpec.Namespace)
+	return p.machineProviderID(secrets, machineName, providerSpec.Namespace)
 }
 
 func (p PluginSPIImpl) DeleteMachine(ctx context.Context, machineName, providerID string, providerSpec *api.KubeVirtProviderSpec, secrets *corev1.Secret) (foundProviderID string, err error) {
-	vm, err := getVM(secrets, machineName, providerSpec.Namespace)
+	vm, err := p.getVM(secrets, machineName, providerSpec.Namespace)
 	if err != nil {
 		if clouderrors.IsMachineNotFoundError(err) {
 			klog.V(2).Infof("skip vm evicting, vm instance %s is not found", machineName)
@@ -206,12 +211,14 @@ func (p PluginSPIImpl) DeleteMachine(ctx context.Context, machineName, providerI
 	}
 
 	if vm != nil {
-		kubevirtClient, err := kubevirtClient(secrets)
-		if err != nil {
-			return "", fmt.Errorf("failed to create kubevirt client: %v", err)
+		if p.client == nil {
+			p.client, err = kubevirtClient(secrets)
+			if err != nil {
+				return "", fmt.Errorf("failed to create kubevirt kubevirtClient: %v", err)
+			}
 		}
 
-		if err := kubevirtClient.Delete(context.Background(), vm); err != nil {
+		if err := p.client.Delete(context.Background(), vm); err != nil {
 			return "", fmt.Errorf("failed to delete vm %v: %v", machineName, err)
 		}
 		return encodeProviderID(string(vm.UID)), nil
@@ -221,34 +228,40 @@ func (p PluginSPIImpl) DeleteMachine(ctx context.Context, machineName, providerI
 }
 
 func (p PluginSPIImpl) GetMachineStatus(ctx context.Context, machineName, providerID string, providerSpec *api.KubeVirtProviderSpec, secrets *corev1.Secret) (foundProviderID string, err error) {
-	return machineProviderID(secrets, machineName, providerSpec.Namespace)
+	return p.machineProviderID(secrets, machineName, providerSpec.Namespace)
 }
 
 func (p PluginSPIImpl) ListMachines(ctx context.Context, providerSpec *api.KubeVirtProviderSpec, secrets *corev1.Secret) (providerIDList map[string]string, err error) {
-	return listVMs(ctx, secrets)
+	return p.listVMs(ctx, secrets)
 }
 
 func (p PluginSPIImpl) ShutDownMachine(ctx context.Context, machineName, providerID string, providerSpec *api.KubeVirtProviderSpec, secrets *corev1.Secret) (foundProviderID string, err error) {
-	virtualMachine, err := getVM(secrets, machineName, providerSpec.Namespace)
+	virtualMachine, err := p.getVM(secrets, machineName, providerSpec.Namespace)
 	if err != nil {
 		return "", err
 	}
 	if virtualMachine != nil {
 		virtualMachine.Spec.Running = utilpointer.BoolPtr(false)
+		if err := p.client.Update(ctx, virtualMachine); err != nil {
+			return "", fmt.Errorf("failed to update machine running state: %v", err)
+		}
 		return encodeProviderID(string(virtualMachine.UID)), nil
 	}
 
 	return "", nil
 }
 
-func getVM(secret *corev1.Secret, machineName, namespace string) (*kubevirtv1.VirtualMachine, error) {
-	kubevirtClient, err := kubevirtClient(secret)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create kubevirt kubevirtClient: %v", err)
+func (p PluginSPIImpl) getVM(secret *corev1.Secret, machineName, namespace string) (*kubevirtv1.VirtualMachine, error) {
+	var err error
+	if p.client == nil {
+		p.client, err = kubevirtClient(secret)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create kubevirt kubevirtClient: %v", err)
+		}
 	}
 
 	virtualMachine := &kubevirtv1.VirtualMachine{}
-	if err := kubevirtClient.Get(context.TODO(), types.NamespacedName{Namespace: namespace, Name: machineName}, virtualMachine); err != nil {
+	if err := p.client.Get(context.TODO(), types.NamespacedName{Namespace: namespace, Name: machineName}, virtualMachine); err != nil {
 		if kerrors.IsNotFound(err) {
 			return nil, &clouderrors.MachineNotFoundError{
 				Name: machineName,
@@ -260,14 +273,17 @@ func getVM(secret *corev1.Secret, machineName, namespace string) (*kubevirtv1.Vi
 	return virtualMachine, nil
 }
 
-func listVMs(ctx context.Context, secret *corev1.Secret) (map[string]string, error) {
-	kubevirtClient, err := kubevirtClient(secret)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create kubevirt kubevirtClient: %v", err)
+func (p PluginSPIImpl) listVMs(ctx context.Context, secret *corev1.Secret) (map[string]string, error) {
+	var err error
+	if p.client == nil {
+		p.client, err = kubevirtClient(secret)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create kubevirt kubevirtClient: %v", err)
+		}
 	}
 
 	virtualMachineList := &kubevirtv1.VirtualMachineList{}
-	if err := kubevirtClient.List(ctx, virtualMachineList, &client.ListOptions{}); err != nil {
+	if err := p.client.List(ctx, virtualMachineList, &client.ListOptions{}); err != nil {
 		return nil, fmt.Errorf("failed to list kubevirt virtual machines: %v", err)
 	}
 
@@ -294,8 +310,8 @@ func kubevirtClient(secret *corev1.Secret) (client.Client, error) {
 	return client.New(config, client.Options{})
 }
 
-func machineProviderID(secret *corev1.Secret, vmName, namespace string) (string, error) {
-	vm, err := getVM(secret, vmName, namespace)
+func (p PluginSPIImpl) machineProviderID(secret *corev1.Secret, vmName, namespace string) (string, error) {
+	vm, err := p.getVM(secret, vmName, namespace)
 	if err != nil || vm == nil {
 		return "", err
 	}
