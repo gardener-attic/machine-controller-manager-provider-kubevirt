@@ -41,9 +41,15 @@ machine-controller-manager-provider-kubevirt:
         image: 'golang:1.13.3'
   jobs:
     head-update:
+      steps:
+        verify:
+          image: 'golang:1.14.4'
       traits:
         draft_release: ~
     pull-request:
+      steps:
+        verify:
+          image: 'golang:1.14.4'
       traits:
         pull-request: ~
     release:
