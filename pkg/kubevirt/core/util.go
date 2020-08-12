@@ -15,19 +15,14 @@
 package core
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
-
-func encodeProviderID(machineID string) string {
-	if machineID == "" {
-		return ""
-	}
-	return fmt.Sprintf("%s/%s", ProviderName, machineID)
-}
 
 // KubevirtClient creates kubevirt client based on the kubeconfig of the kubevirt cluster which is saved in the secret that
 // is passed to it.
@@ -43,4 +38,28 @@ func KubevirtClient(secret *corev1.Secret) (client.Client, error) {
 	}
 
 	return client.New(config, client.Options{})
+}
+
+func encodeProviderID(machineID string) string {
+	if machineID == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s/%s", ProviderName, machineID)
+}
+
+func addUserSSHKeysToUserData(userData string, sshKeys []string) (string, error) {
+	var userDataBuilder strings.Builder
+	if strings.Contains(userData, "ssh_authorized_keys:") {
+		return "", errors.New("userdata already contains key `ssh_authorized_keys`")
+	}
+
+	userDataBuilder.WriteString(userData)
+	userDataBuilder.WriteString("\nssh_authorized_keys:\n")
+	for _, key := range sshKeys {
+		userDataBuilder.WriteString("- ")
+		userDataBuilder.WriteString(key)
+		userDataBuilder.WriteString("\n")
+	}
+
+	return userDataBuilder.String(), nil
 }

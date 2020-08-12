@@ -37,4 +37,7 @@ type KubeVirtProviderSpec struct {
 	// DNS options set along with hostNetwork, you have to specify DNS policy explicitly to 'ClusterFirstWithHostNet'.
 	// +optional
 	DNSPolicy string `json:"dnsPolicy,omitempty"`
+	// SSHKeys is an optional array of ssh public keys to deploy to VM (may already be included in UserData)
+	// +optional
+	SSHKeys []string `json:"sshKeys,omitempty"`
 }
