@@ -28,8 +28,8 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-// ValidateKubevirtSecret validates kubevirt spec and secret to check if all fields are present and valid
-func ValidateKubevirtSecret(spec *api.KubeVirtProviderSpec, secrets *corev1.Secret) []error {
+// ValidateKubevirtProviderSpecAndSecret validates kubevirt spec and secret to check if all fields are present and valid
+func ValidateKubevirtProviderSpecAndSecret(spec *api.KubeVirtProviderSpec, secrets *corev1.Secret) []error {
 	var validationErrors []error
 
 	if spec.CPUs == "" {
