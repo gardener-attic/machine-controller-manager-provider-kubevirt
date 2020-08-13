@@ -217,7 +217,7 @@ func (p PluginSPIImpl) DeleteMachine(ctx context.Context, machineName, providerI
 			klog.V(2).Infof("skip virtualMachine evicting, virtualMachine instance %s is not found", machineName)
 			return "", nil
 		}
-		return "", fmt.Errorf("failed to get virtualMachine: %v", err)
+		return "", err
 	}
 
 	if err := client.IgnoreNotFound(c.Delete(ctx, virtualMachine)); err != nil {
@@ -300,7 +300,7 @@ func (p PluginSPIImpl) listVMs(ctx context.Context, secret *corev1.Secret) (map[
 func (p PluginSPIImpl) machineProviderID(ctx context.Context, secret *corev1.Secret, virtualMachineName, namespace string) (string, error) {
 	virtualMachine, err := p.getVM(ctx, secret, virtualMachineName, namespace)
 	if err != nil {
-		return "", fmt.Errorf("failed to get virtualMachine: %v", err)
+		return "", err
 	}
 
 	return encodeProviderID(string(virtualMachine.UID)), nil
