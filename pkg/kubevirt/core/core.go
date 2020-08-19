@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	api "github.com/gardener/machine-controller-manager-provider-kubevirt/pkg/kubevirt/apis"
@@ -60,8 +61,8 @@ func NewPluginSPIImpl(client ClientFunc) (*PluginSPIImpl, error) {
 
 // CreateMachine creates a kubevirt virtual machine based on the passed provider spec with an associated data volume based on the
 // DataVolumeTemplate. It also creates a secret where the userdata(cloud-init) are saved and mounted on the vm.
-func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, providerSpec *api.KubeVirtProviderSpec, secrets *corev1.Secret) (providerID string, err error) {
-	c, err := p.client(secrets)
+func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, providerSpec *api.KubeVirtProviderSpec, secret *corev1.Secret) (providerID string, err error) {
+	c, err := p.client(secret)
 	if err != nil {
 		return "", fmt.Errorf("failed to create kubevirt client: %v", err)
 	}
@@ -95,6 +96,19 @@ func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, pr
 	if providerSpec.DNSConfig != "" {
 		if err := yaml.Unmarshal([]byte(providerSpec.DNSConfig), dnsConfig); err != nil {
 			return "", fmt.Errorf(`failed to unmarshal "dnsConfig" field: %v`, err)
+		}
+	}
+
+	userData := string(secret.Data["userData"])
+	if len(providerSpec.SSHKeys) > 0 {
+		var userSSHKeys []string
+		for _, sshKey := range providerSpec.SSHKeys {
+			userSSHKeys = append(userSSHKeys, strings.TrimSpace(sshKey))
+		}
+
+		userData, err = addUserSSHKeysToUserData(userData, userSSHKeys)
+		if err != nil {
+			return "", fmt.Errorf("failed to add ssh keys to cloud-init: %v", err)
 		}
 	}
 
@@ -188,20 +202,20 @@ func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, pr
 		return "", fmt.Errorf("failed to create vmi: %v", err)
 	}
 
-	secret := &corev1.Secret{
+	userDataSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            userdataSecretName,
 			Namespace:       virtualMachine.Namespace,
 			OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(virtualMachine, kubevirtv1.VirtualMachineGroupVersionKind)},
 		},
-		Data: map[string][]byte{"userdata": []byte(secrets.Data["userData"])},
+		Data: map[string][]byte{"userdata": []byte(userData)},
 	}
 
-	if err := c.Create(ctx, secret); err != nil {
+	if err := c.Create(ctx, userDataSecret); err != nil {
 		return "", fmt.Errorf("failed to create secret for userdata: %v", err)
 	}
 
-	return p.machineProviderID(ctx, secrets, machineName, providerSpec.Namespace)
+	return p.machineProviderID(ctx, secret, machineName, providerSpec.Namespace)
 }
 
 // DeleteMachine delete the virtual machine which then delete tha cirtual machine instance and all associated resources such DataVolume.
