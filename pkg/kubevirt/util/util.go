@@ -34,7 +34,7 @@ func DNSPolicy(policy string) (corev1.DNSPolicy, error) {
 		return corev1.DNSNone, nil
 	}
 
-	return "", fmt.Errorf("unknown dns policy: %s", policy)
+	return "", fmt.Errorf("unknown DNS policy: %s", policy)
 }
 
 // ParseResources receives cpus and memory parameters and parse them as a ResourceList to be used in the virtual machine.

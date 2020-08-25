@@ -26,14 +26,12 @@ type KubeVirtProviderSpec struct {
 	CPUs string `json:"cpus,omitempty"`
 	// Memory specifies how much memroy the vm will request.
 	Memory string `json:"memory,omitempty"`
-	// Namespace specifies the namespace where the vm should be created.
-	Namespace string `json:"namespace,omitempty"`
 	// DNSConfig Specifies the DNS parameters of a pod. Parameters specified here will be merged to the generated DNS
 	// configuration based on DNSPolicy.
 	// +optional
 	DNSConfig string `json:"dnsConfig,omitempty"`
 	// DNSPolicy Set DNS policy for the pod. Defaults to "ClusterFirst" and valid values are 'ClusterFirstWithHostNet', 'ClusterFirst',
-	//'Default' or 'None'. DNS parameters given in DNSConfig will be merged with the policy selected with DNSPolicy. To have
+	// 'Default' or 'None'. DNS parameters given in DNSConfig will be merged with the policy selected with DNSPolicy. To have
 	// DNS options set along with hostNetwork, you have to specify DNS policy explicitly to 'ClusterFirstWithHostNet'.
 	// +optional
 	DNSPolicy string `json:"dnsPolicy,omitempty"`
