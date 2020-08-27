@@ -112,6 +112,8 @@ func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, pr
 		}
 	}
 
+	interfaces, networks, networkData := buildNetworks(providerSpec.Networks)
+
 	userData := string(secret.Data["userData"])
 	if len(providerSpec.SSHKeys) > 0 {
 		var userSSHKeys []string
@@ -154,6 +156,7 @@ func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, pr
 									DiskDevice: kubevirtv1.DiskDevice{Disk: &kubevirtv1.DiskTarget{Bus: "virtio"}},
 								},
 							},
+							Interfaces: interfaces,
 						},
 						Resources: kubevirtv1.ResourceRequirements{
 							Requests: *requestsAndLimits,
@@ -177,12 +180,14 @@ func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, pr
 									UserDataSecretRef: &corev1.LocalObjectReference{
 										Name: userdataSecretName,
 									},
+									NetworkData: networkData,
 								},
 							},
 						},
 					},
 					DNSPolicy: dnsPolicy,
 					DNSConfig: dnsConfig,
+					Networks:  networks,
 				},
 			},
 			DataVolumeTemplates: []cdi.DataVolume{

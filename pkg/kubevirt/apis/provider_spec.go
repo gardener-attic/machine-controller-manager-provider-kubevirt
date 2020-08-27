@@ -16,26 +16,39 @@ package api
 
 // KubeVirtProviderSpec is the spec to be used while parsing the calls.
 type KubeVirtProviderSpec struct {
-	// SourceURL is the http url of the source image which will be imported by the cdi.
+	// SourceURL is the HTTP URL of the source image imported by CDI.
 	SourceURL string `json:"sourceURL,omitempty"`
-	// StorageClassName specifies the name which cdi uses to in order to create claims.
+	// StorageClassName is the name which CDI uses to in order to create claims.
 	StorageClassName string `json:"storageClassName,omitempty"`
-	// PVCSize specifies the size of the PersistentVolumeClaim that's created during the image import by the cdi.
+	// PVCSize is the size of the PersistentVolumeClaim that is created during the image import by CDI.
 	PVCSize string `json:"pvcSize,omitempty"`
-	// CPUs number of cpus that the vm will use.
+	// CPUs is the number of CPUs requested by the VM.
 	CPUs string `json:"cpus,omitempty"`
-	// Memory specifies how much memroy the vm will request.
+	// Memory is the amount of memory requested by the VM.
 	Memory string `json:"memory,omitempty"`
-	// DNSConfig Specifies the DNS parameters of a pod. Parameters specified here will be merged to the generated DNS
-	// configuration based on DNSPolicy.
+	// DNSConfig is the DNS configuration of the VM pod.
+	// The parameters specified here will be merged with the generated DNS configuration based on DNSPolicy.
 	// +optional
 	DNSConfig string `json:"dnsConfig,omitempty"`
-	// DNSPolicy Set DNS policy for the pod. Defaults to "ClusterFirst" and valid values are 'ClusterFirstWithHostNet', 'ClusterFirst',
-	// 'Default' or 'None'. DNS parameters given in DNSConfig will be merged with the policy selected with DNSPolicy. To have
-	// DNS options set along with hostNetwork, you have to specify DNS policy explicitly to 'ClusterFirstWithHostNet'.
+	// DNSPolicy is the DNS policy for the VM pod.
+	// Defaults to "ClusterFirst" and valid values are 'ClusterFirstWithHostNet', 'ClusterFirst', 'Default' or 'None'.
+	// To have DNS options set along with hostNetwork, specify DNS policy as 'ClusterFirstWithHostNet'.
 	// +optional
 	DNSPolicy string `json:"dnsPolicy,omitempty"`
-	// SSHKeys is an optional array of ssh public keys to deploy to VM (may already be included in UserData)
+	// SSHKeys is an optional list of SSH public keys added to the VM (may already be included in UserData)
 	// +optional
 	SSHKeys []string `json:"sshKeys,omitempty"`
+	// Networks is an optional list of networks for the VM. If any of the networks is specified as "default"
+	// the pod network won't be added, otherwise it will be added as default.
+	// +optional
+	Networks []NetworkSpec `json:"networks,omitempty"`
+}
+
+// NetworkSpec contains information about a network.
+type NetworkSpec struct {
+	// Name is the name (in the format <name> or <namespace>/<name>) of the network.
+	Name string `json:"name"`
+	// Default is whether the network is the default or not.
+	// +optional
+	Default bool `json:"default,omitempty"`
 }
