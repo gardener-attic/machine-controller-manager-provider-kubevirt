@@ -24,20 +24,30 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// KubevirtClient creates kubevirt client based on the kubeconfig of the kubevirt cluster which is saved in the secret that
-// is passed to it.
-func KubevirtClient(secret *corev1.Secret) (client.Client, error) {
-	kubeconfig, kubevirtKubeconifgCheck := secret.Data["kubeconfig"]
-	if !kubevirtKubeconifgCheck {
-		return nil, fmt.Errorf("kubevirt kubeconfig is not found")
+// GetClient creates a client from the kubeconfig saved in the "kubeconfig" field of the given secret.
+// It also returns the namespace of the kubeconfig's current context.
+func GetClient(secret *corev1.Secret) (client.Client, string, error) {
+	kubeconfig, ok := secret.Data["kubeconfig"]
+	if !ok {
+		return nil, "", errors.New("missing kubeconfig field in secret")
 	}
-
-	config, err := clientcmd.RESTConfigFromKubeConfig(kubeconfig)
+	clientConfig, err := clientcmd.NewClientConfigFromBytes(kubeconfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode kubeconfig: %v", err)
+		return nil, "", fmt.Errorf("could not create client config from kubeconfig: %v", err)
 	}
-
-	return client.New(config, client.Options{})
+	config, err := clientConfig.ClientConfig()
+	if err != nil {
+		return nil, "", fmt.Errorf("could not get REST config from client config: %v", err)
+	}
+	c, err := client.New(config, client.Options{})
+	if err != nil {
+		return nil, "", fmt.Errorf("could not create client from REST config: %v", err)
+	}
+	namespace, _, err := clientConfig.Namespace()
+	if err != nil {
+		return nil, "", fmt.Errorf("could not get namespace from client config: %v", err)
+	}
+	return c, namespace, nil
 }
 
 func encodeProviderID(machineID string) string {

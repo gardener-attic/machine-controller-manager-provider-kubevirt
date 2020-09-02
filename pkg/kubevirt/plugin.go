@@ -50,9 +50,9 @@ type MachinePlugin struct {
 
 // NewKubevirtPlugin returns a new Kubevirt cloud provider driver.
 func NewKubevirtPlugin() driver.Driver {
-	plugin, err := core.NewPluginSPIImpl(core.KubevirtClient)
+	plugin, err := core.NewPluginSPIImpl(core.ClientFactoryFunc(core.GetClient))
 	if err != nil {
-		klog.Errorf("failed to create a kubevirt driver")
+		klog.Errorf("failed to create Kubevirt plugin")
 		return nil
 	}
 

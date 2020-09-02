@@ -49,17 +49,17 @@ import (
 //
 func (p *MachinePlugin) CreateMachine(ctx context.Context, req *driver.CreateMachineRequest) (*driver.CreateMachineResponse, error) {
 	// Log messages to track request
-	klog.V(2).Infof("Machine creation request has been recieved for %q", req.Machine.Name)
-	defer klog.V(2).Infof("Machine creation request has been processed for %q", req.Machine.Name)
+	klog.V(2).Infof("CreateMachine request has been received for %q", req.Machine.Name)
+	defer klog.V(2).Infof("CreateMachine request has been processed for %q", req.Machine.Name)
 
 	providerSpec, err := decodeProviderSpecAndSecret(req.MachineClass, req.Secret)
 	if err != nil {
-		return nil, prepareErrorf(err, "Create machine %q failed on decodeProviderSpecAndSecret", req.Machine.Name)
+		return nil, prepareErrorf(err, "could not decode provider spec and secret")
 	}
 
 	providerID, err := p.SPI.CreateMachine(ctx, req.Machine.Name, providerSpec, req.Secret)
 	if err != nil {
-		return nil, prepareErrorf(err, "Create machine %q failed", req.Machine.Name)
+		return nil, prepareErrorf(err, "could not create machine %q", req.Machine.Name)
 	}
 
 	response := &driver.CreateMachineResponse{
@@ -83,17 +83,17 @@ func (p *MachinePlugin) CreateMachine(ctx context.Context, req *driver.CreateMac
 //
 func (p *MachinePlugin) DeleteMachine(ctx context.Context, req *driver.DeleteMachineRequest) (*driver.DeleteMachineResponse, error) {
 	// Log messages to track delete request
-	klog.V(2).Infof("Machine deletion request has been recieved for %q", req.Machine.Name)
-	defer klog.V(2).Infof("Machine deletion request has been processed for %q", req.Machine.Name)
+	klog.V(2).Infof("DeleteMachine request has been received for %q", req.Machine.Name)
+	defer klog.V(2).Infof("DeleteMachine request has been processed for %q", req.Machine.Name)
 
 	providerSpec, err := decodeProviderSpecAndSecret(req.MachineClass, req.Secret)
 	if err != nil {
-		return nil, prepareErrorf(err, "Create machine %q failed on decodeProviderSpecAndSecret", req.Machine.Name)
+		return nil, prepareErrorf(err, "could not decode provider spec and secret")
 	}
 
 	providerID, err := p.SPI.DeleteMachine(ctx, req.Machine.Name, req.Machine.Spec.ProviderID, providerSpec, req.Secret)
 	if err != nil {
-		return nil, prepareErrorf(err, "Create machine %q failed", req.Machine.Name)
+		return nil, prepareErrorf(err, "could not delete machine %q", req.Machine.Name)
 	}
 
 	response := &driver.DeleteMachineResponse{
@@ -120,17 +120,17 @@ func (p *MachinePlugin) DeleteMachine(ctx context.Context, req *driver.DeleteMac
 // The request should return a NOT_FOUND (5) status errors code if the machine is not existing
 func (p *MachinePlugin) GetMachineStatus(ctx context.Context, req *driver.GetMachineStatusRequest) (*driver.GetMachineStatusResponse, error) {
 	// Log messages to track start and end of request
-	klog.V(2).Infof("Get request has been recieved for %q", req.Machine.Name)
-	defer klog.V(2).Infof("Machine get request has been processed successfully for %q", req.Machine.Name)
+	klog.V(2).Infof("GetMachineStatus request has been received for %q", req.Machine.Name)
+	defer klog.V(2).Infof("GetMachineStatus request has been processed for %q", req.Machine.Name)
 
 	providerSpec, err := decodeProviderSpecAndSecret(req.MachineClass, req.Secret)
 	if err != nil {
-		return nil, prepareErrorf(err, "Create machine %q failed on decodeProviderSpecAndSecret", req.Machine.Name)
+		return nil, prepareErrorf(err, "could not decode provider spec and secret")
 	}
 
 	providerID, err := p.SPI.GetMachineStatus(ctx, req.Machine.Name, req.Machine.Spec.ProviderID, providerSpec, req.Secret)
 	if err != nil {
-		return nil, prepareErrorf(err, "Machine status %q failed", req.Machine.Name)
+		return nil, prepareErrorf(err, "could not get status of machine %q", req.Machine.Name)
 	}
 
 	response := &driver.GetMachineStatusResponse{
@@ -138,7 +138,7 @@ func (p *MachinePlugin) GetMachineStatus(ctx context.Context, req *driver.GetMac
 		NodeName:   req.Machine.Name,
 	}
 
-	klog.V(2).Infof("Machine status: found VM %q for Machine: %q", response.ProviderID, req.Machine.Name)
+	klog.V(2).Infof("Found machine with provider ID %q for %q", response.ProviderID, req.Machine.Name)
 
 	return response, nil
 }
@@ -158,20 +158,20 @@ func (p *MachinePlugin) GetMachineStatus(ctx context.Context, req *driver.GetMac
 //
 func (p *MachinePlugin) ListMachines(ctx context.Context, req *driver.ListMachinesRequest) (*driver.ListMachinesResponse, error) {
 	// Log messages to track start and end of request
-	klog.V(2).Infof("List machines request has been recieved for %q", req.MachineClass.Name)
-	defer klog.V(2).Infof("List machines request has been recieved for %q", req.MachineClass.Name)
+	klog.V(2).Infof("ListMachines request has been received for %q", req.MachineClass.Name)
+	defer klog.V(2).Infof("ListMachines request has been processed for %q", req.MachineClass.Name)
 
 	providerSpec, err := decodeProviderSpecAndSecret(req.MachineClass, req.Secret)
 	if err != nil {
-		return nil, prepareErrorf(err, "List machines failed on decodeProviderSpecAndSecret")
+		return nil, prepareErrorf(err, "could not decode provider spec and secret")
 	}
 
 	machineList, err := p.SPI.ListMachines(ctx, providerSpec, req.Secret)
 	if err != nil {
-		return nil, prepareErrorf(err, "List machines failed")
+		return nil, prepareErrorf(err, "could not list machines")
 	}
 
-	klog.V(2).Infof("List machines request for kubevirt cluster, found %d machines", len(machineList))
+	klog.V(2).Infof("Found %d machines for %q", len(machineList), req.MachineClass.Name)
 
 	return &driver.ListMachinesResponse{
 		MachineList: machineList,
@@ -188,8 +188,8 @@ func (p *MachinePlugin) ListMachines(ctx context.Context, req *driver.ListMachin
 //
 func (p *MachinePlugin) GetVolumeIDs(ctx context.Context, req *driver.GetVolumeIDsRequest) (*driver.GetVolumeIDsResponse, error) {
 	// Log messages to track start and end of request
-	klog.V(2).Infof("GetVolumeIDs request has been recieved for %q", req.PVSpecs)
-	defer klog.V(2).Infof("GetVolumeIDs request has been processed successfully for %q", req.PVSpecs)
+	klog.V(2).Infof("GetVolumeIDs request has been received for %q", req.PVSpecs)
+	defer klog.V(2).Infof("GetVolumeIDs request has been processed for %q", req.PVSpecs)
 
 	return &driver.GetVolumeIDsResponse{}, status.Error(codes.Unimplemented, "")
 }

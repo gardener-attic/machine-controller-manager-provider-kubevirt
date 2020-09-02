@@ -83,7 +83,7 @@ func validateSecrets(secret *corev1.Secret) []error {
 	var validationErrors []error
 
 	if secret == nil {
-		validationErrors = append(validationErrors, errors.New("secret object that has been passed by the MCM is nil"))
+		validationErrors = append(validationErrors, errors.New("secret object passed by the MCM is nil"))
 	} else {
 		kubeconfig, kubevirtKubeconifgCheck := secret.Data["kubeconfig"]
 		_, userdataCheck := secret.Data["userData"]
