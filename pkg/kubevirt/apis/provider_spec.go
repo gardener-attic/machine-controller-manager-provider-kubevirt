@@ -42,6 +42,9 @@ type KubeVirtProviderSpec struct {
 	// the pod network won't be added, otherwise it will be added as default.
 	// +optional
 	Networks []NetworkSpec `json:"networks,omitempty"`
+	// Tags is an optional map of tags that is added to the VM as labels.
+	// +optional
+	Tags map[string]string `json:"tags,omitempty"`
 }
 
 // NetworkSpec contains information about a network.
