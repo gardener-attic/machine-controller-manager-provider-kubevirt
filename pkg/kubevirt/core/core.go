@@ -127,13 +127,18 @@ func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, pr
 		}
 	}
 
+	var vmLabels = map[string]string{}
+	if len(providerSpec.Tags) > 0 {
+		vmLabels = providerSpec.Tags
+	}
+
+	vmLabels["kubevirt.io/vm"] = machineName
+
 	virtualMachine := &kubevirtv1.VirtualMachine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      machineName,
 			Namespace: namespace,
-			Labels: map[string]string{
-				"kubevirt.io/vm": machineName,
-			},
+			Labels:    vmLabels,
 		},
 		Spec: kubevirtv1.VirtualMachineSpec{
 			Running: utilpointer.BoolPtr(true),
