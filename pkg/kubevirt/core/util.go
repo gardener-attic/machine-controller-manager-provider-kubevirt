@@ -53,11 +53,11 @@ func GetClient(secret *corev1.Secret) (client.Client, string, error) {
 	return c, namespace, nil
 }
 
-func encodeProviderID(machineID string) string {
-	if machineID == "" {
+func encodeProviderID(machineName string) string {
+	if machineName == "" {
 		return ""
 	}
-	return fmt.Sprintf("%s/%s", ProviderName, machineID)
+	return fmt.Sprintf("%s://%s", ProviderName, machineName)
 }
 
 func buildNetworks(networkSpecs []api.NetworkSpec) ([]kubevirtv1.Interface, []kubevirtv1.Network, string) {

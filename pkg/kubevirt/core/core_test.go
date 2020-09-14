@@ -80,7 +80,7 @@ func TestPluginSPIImpl_GetMachineStatus(t *testing.T) {
 			t.Fatalf("failed to get machine status: %v", err)
 		}
 
-		if providerID != "" {
+		if providerID != ProviderName+"://"+machineName {
 			t.Fatal("provider id doesn't match the expected value")
 		}
 	})

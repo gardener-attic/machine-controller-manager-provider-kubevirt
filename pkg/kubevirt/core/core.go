@@ -238,7 +238,7 @@ func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, pr
 		return "", fmt.Errorf("failed to create secret for userdata: %v", err)
 	}
 
-	return p.machineProviderID(ctx, c, machineName, namespace)
+	return encodeProviderID(machineName), nil
 }
 
 // DeleteMachine deletes the Kubevirt virtual machine with the given name.
@@ -260,7 +260,7 @@ func (p PluginSPIImpl) DeleteMachine(ctx context.Context, machineName, _ string,
 	if err := client.IgnoreNotFound(c.Delete(ctx, virtualMachine)); err != nil {
 		return "", fmt.Errorf("failed to delete VirtualMachine %v: %v", machineName, err)
 	}
-	return encodeProviderID(string(virtualMachine.UID)), nil
+	return encodeProviderID(virtualMachine.Name), nil
 }
 
 // GetMachineStatus fetches the provider id of the Kubevirt virtual machine with the given name.
@@ -270,7 +270,12 @@ func (p PluginSPIImpl) GetMachineStatus(ctx context.Context, machineName, _ stri
 		return "", fmt.Errorf("failed to create client: %v", err)
 	}
 
-	return p.machineProviderID(ctx, c, machineName, namespace)
+	virtualMachine, err := p.getVM(ctx, c, machineName, namespace)
+	if err != nil {
+		return "", err
+	}
+
+	return encodeProviderID(virtualMachine.Name), nil
 }
 
 // ListMachines lists the provider ids of all Kubevirt virtual machines.
@@ -280,7 +285,17 @@ func (p PluginSPIImpl) ListMachines(ctx context.Context, _ *api.KubeVirtProvider
 		return nil, fmt.Errorf("failed to create client: %v", err)
 	}
 
-	return p.listVMs(ctx, c, namespace)
+	virtualMachineList, err := p.listVMs(ctx, c, namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	var providerIDs = make(map[string]string, len(virtualMachineList.Items))
+	for _, virtualMachine := range virtualMachineList.Items {
+		providerIDs[encodeProviderID(virtualMachine.Name)] = virtualMachine.Name
+	}
+
+	return providerIDs, nil
 }
 
 // ShutDownMachine shuts down the Kubevirt virtual machine with the given name by setting its spec.running field to false.
@@ -302,7 +317,7 @@ func (p PluginSPIImpl) ShutDownMachine(ctx context.Context, machineName, _ strin
 		return "", fmt.Errorf("failed to update VirtualMachine running state: %v", err)
 	}
 
-	return encodeProviderID(string(virtualMachine.UID)), nil
+	return encodeProviderID(virtualMachine.Name), nil
 }
 
 func (p PluginSPIImpl) getVM(ctx context.Context, c client.Client, machineName, namespace string) (*kubevirtv1.VirtualMachine, error) {
@@ -318,26 +333,10 @@ func (p PluginSPIImpl) getVM(ctx context.Context, c client.Client, machineName, 
 	return virtualMachine, nil
 }
 
-func (p PluginSPIImpl) listVMs(ctx context.Context, c client.Client, namespace string) (map[string]string, error) {
+func (p PluginSPIImpl) listVMs(ctx context.Context, c client.Client, namespace string) (*kubevirtv1.VirtualMachineList, error) {
 	virtualMachineList := &kubevirtv1.VirtualMachineList{}
 	if err := c.List(ctx, virtualMachineList, client.InNamespace(namespace)); err != nil {
 		return nil, fmt.Errorf("failed to list VirtualMachines: %v", err)
 	}
-
-	var providerIDs = make(map[string]string, len(virtualMachineList.Items))
-	for _, virtualMachine := range virtualMachineList.Items {
-		providerID := encodeProviderID(string(virtualMachine.UID))
-		providerIDs[providerID] = virtualMachine.Name
-	}
-
-	return providerIDs, nil
-}
-
-func (p PluginSPIImpl) machineProviderID(ctx context.Context, c client.Client, machineName, namespace string) (string, error) {
-	virtualMachine, err := p.getVM(ctx, c, machineName, namespace)
-	if err != nil {
-		return "", err
-	}
-
-	return encodeProviderID(string(virtualMachine.UID)), nil
+	return virtualMachineList, nil
 }
