@@ -26,8 +26,10 @@ import (
 	_ "github.com/gardener/machine-controller-manager/pkg/util/reflector/prometheus" // for reflector metric registration
 	_ "github.com/gardener/machine-controller-manager/pkg/util/workqueue/prometheus" // for workqueue metric registration
 	"github.com/spf13/pflag"
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/component-base/cli/flag"
 	"k8s.io/component-base/logs"
+	cdi "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 )
 
 func main() {
@@ -38,6 +40,11 @@ func main() {
 	flag.InitFlags()
 	logs.InitLogs()
 	defer logs.FlushLogs()
+
+	if err := cdi.AddToScheme(scheme.Scheme); err != nil {
+		fmt.Fprintf(os.Stderr, " %v\n", err)
+		os.Exit(1)
+	}
 
 	plugin := kubevirt.NewKubevirtPlugin()
 

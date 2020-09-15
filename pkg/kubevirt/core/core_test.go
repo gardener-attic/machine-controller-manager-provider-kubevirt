@@ -16,12 +16,15 @@ package core
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	api "github.com/gardener/machine-controller-manager-provider-kubevirt/pkg/kubevirt/apis"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/klog"
+	cdi "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
@@ -37,6 +40,13 @@ var (
 	machineName = "kubevirt-machine"
 	namespace   = "default"
 )
+
+func init() {
+	if err := cdi.AddToScheme(scheme.Scheme); err != nil {
+		klog.Errorf("could not execute tests: %v", err)
+		os.Exit(1)
+	}
+}
 
 func TestPluginSPIImpl_CreateMachine(t *testing.T) {
 	fakeClient := fake.NewFakeClientWithScheme(scheme.Scheme)

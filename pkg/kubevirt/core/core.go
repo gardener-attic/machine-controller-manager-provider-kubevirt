@@ -40,8 +40,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// ProviderName specifies the machine controller for kubevirt cloud provider
-const ProviderName = "kubevirt"
+const (
+	// ProviderName specifies the machine controller for kubevirt cloud provider
+	ProviderName      = "kubevirt"
+	machineClassLabel = "mcm.gardener.cloud/machineclass"
+)
 
 // ClientFactory creates a client from the kubeconfig saved in the "kubeconfig" field of the given secret.
 type ClientFactory interface {
@@ -134,6 +137,44 @@ func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, pr
 
 	vmLabels["kubevirt.io/vm"] = machineName
 
+	machineClassName := vmLabels[machineClassLabel]
+	dataVolumeName, err := p.getDataVolume(ctx, c, machineClassName, namespace)
+	if err != nil {
+		return "", err
+	}
+
+	dataVolumeTemplate := cdi.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      machineName,
+			Namespace: namespace,
+		},
+		Spec: cdi.DataVolumeSpec{
+			PVC: &corev1.PersistentVolumeClaimSpec{
+				StorageClassName: utilpointer.StringPtr(providerSpec.StorageClassName),
+				AccessModes: []corev1.PersistentVolumeAccessMode{
+					"ReadWriteOnce",
+				},
+				Resources: corev1.ResourceRequirements{
+					Requests: pvcRequest,
+				},
+			},
+			Source: cdi.DataVolumeSource{
+				HTTP: &cdi.DataVolumeSourceHTTP{
+					URL: providerSpec.SourceURL,
+				},
+			},
+		},
+	}
+
+	if dataVolumeName != "" {
+		dataVolumeTemplate.Spec.Source = cdi.DataVolumeSource{
+			PVC: &cdi.DataVolumeSourcePVC{
+				Name:      dataVolumeName,
+				Namespace: namespace,
+			},
+		}
+	}
+
 	virtualMachine := &kubevirtv1.VirtualMachine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      machineName,
@@ -196,27 +237,7 @@ func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, pr
 				},
 			},
 			DataVolumeTemplates: []cdi.DataVolume{
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: machineName,
-					},
-					Spec: cdi.DataVolumeSpec{
-						PVC: &corev1.PersistentVolumeClaimSpec{
-							StorageClassName: utilpointer.StringPtr(providerSpec.StorageClassName),
-							AccessModes: []corev1.PersistentVolumeAccessMode{
-								"ReadWriteOnce",
-							},
-							Resources: corev1.ResourceRequirements{
-								Requests: pvcRequest,
-							},
-						},
-						Source: cdi.DataVolumeSource{
-							HTTP: &cdi.DataVolumeSourceHTTP{
-								URL: providerSpec.SourceURL,
-							},
-						},
-					},
-				},
+				dataVolumeTemplate,
 			},
 		},
 	}
@@ -340,4 +361,16 @@ func (p PluginSPIImpl) machineProviderID(ctx context.Context, c client.Client, m
 	}
 
 	return encodeProviderID(string(virtualMachine.UID)), nil
+}
+
+func (p PluginSPIImpl) getDataVolume(ctx context.Context, c client.Client, dataVolumeName, namespace string) (string, error) {
+	dataVolume := &cdi.DataVolume{}
+	if err := c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: dataVolumeName}, dataVolume); err != nil {
+		if kerrors.IsNotFound(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("failed to get DataVolume: %v", err)
+	}
+
+	return dataVolume.Name, nil
 }
