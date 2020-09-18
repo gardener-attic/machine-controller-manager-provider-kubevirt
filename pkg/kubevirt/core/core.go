@@ -131,7 +131,6 @@ func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, pr
 	if len(providerSpec.Tags) > 0 {
 		vmLabels = providerSpec.Tags
 	}
-
 	vmLabels["kubevirt.io/vm"] = machineName
 
 	virtualMachine := &kubevirtv1.VirtualMachine{
@@ -279,13 +278,18 @@ func (p PluginSPIImpl) GetMachineStatus(ctx context.Context, machineName, _ stri
 }
 
 // ListMachines lists the provider ids of all Kubevirt virtual machines.
-func (p PluginSPIImpl) ListMachines(ctx context.Context, _ *api.KubeVirtProviderSpec, secret *corev1.Secret) (providerIDList map[string]string, err error) {
+func (p PluginSPIImpl) ListMachines(ctx context.Context, providerSpec *api.KubeVirtProviderSpec, secret *corev1.Secret) (providerIDList map[string]string, err error) {
 	c, namespace, err := p.cf.GetClient(secret)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create client: %v", err)
 	}
 
-	virtualMachineList, err := p.listVMs(ctx, c, namespace)
+	var vmLabels = map[string]string{}
+	if len(providerSpec.Tags) > 0 {
+		vmLabels = providerSpec.Tags
+	}
+
+	virtualMachineList, err := p.listVMs(ctx, c, namespace, vmLabels)
 	if err != nil {
 		return nil, err
 	}
@@ -333,9 +337,13 @@ func (p PluginSPIImpl) getVM(ctx context.Context, c client.Client, machineName, 
 	return virtualMachine, nil
 }
 
-func (p PluginSPIImpl) listVMs(ctx context.Context, c client.Client, namespace string) (*kubevirtv1.VirtualMachineList, error) {
+func (p PluginSPIImpl) listVMs(ctx context.Context, c client.Client, namespace string, vmLabels map[string]string) (*kubevirtv1.VirtualMachineList, error) {
 	virtualMachineList := &kubevirtv1.VirtualMachineList{}
-	if err := c.List(ctx, virtualMachineList, client.InNamespace(namespace)); err != nil {
+	opts := []client.ListOption{client.InNamespace(namespace)}
+	if len(vmLabels) > 0 {
+		opts = append(opts, client.MatchingLabels(vmLabels))
+	}
+	if err := c.List(ctx, virtualMachineList, opts...); err != nil {
 		return nil, fmt.Errorf("failed to list VirtualMachines: %v", err)
 	}
 	return virtualMachineList, nil
