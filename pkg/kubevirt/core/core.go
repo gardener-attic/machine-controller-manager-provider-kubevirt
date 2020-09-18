@@ -62,16 +62,32 @@ func (f ClientFactoryFunc) GetClient(secret *corev1.Secret) (client.Client, stri
 	return f(secret)
 }
 
+// ServerVersionFactory gets the server version from the kubeconfig saved in the "kubeconfig" field of the given secret.
+type ServerVersionFactory interface {
+	// GetServerVersion gets the server version from the kubeconfig saved in the "kubeconfig" field of the given secret.
+	GetServerVersion(secret *corev1.Secret) (string, error)
+}
+
+// ServerVersionFactoryFunc is a function that implements ServerVersionFactory.
+type ServerVersionFactoryFunc func(secret *corev1.Secret) (string, error)
+
+// GetServerVersion gets the server version from the kubeconfig saved in the "kubeconfig" field of the given secret.
+func (f ServerVersionFactoryFunc) GetServerVersion(secret *corev1.Secret) (string, error) {
+	return f(secret)
+}
+
 // PluginSPIImpl is the real implementation of PluginSPI interface
 // that makes the calls to the provider SDK
 type PluginSPIImpl struct {
-	cf ClientFactory
+	cf  ClientFactory
+	svf ServerVersionFactory
 }
 
-// NewPluginSPIImpl creates a new PluginSPIImpl with the given ClientFactory.
-func NewPluginSPIImpl(cf ClientFactory) (*PluginSPIImpl, error) {
+// NewPluginSPIImpl creates a new PluginSPIImpl with the given ClientFactory and ServerVersionFactory.
+func NewPluginSPIImpl(cf ClientFactory, svf ServerVersionFactory) (*PluginSPIImpl, error) {
 	return &PluginSPIImpl{
-		cf: cf,
+		cf:  cf,
+		svf: svf,
 	}, nil
 }
 
@@ -116,6 +132,13 @@ func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, pr
 	}
 
 	interfaces, networks, networkData := buildNetworks(providerSpec.Networks)
+
+	k8sVersion, err := p.svf.GetServerVersion(secret)
+	if err != nil {
+		return "", fmt.Errorf("failed to get server version: %v", err)
+	}
+
+	affinity := buildAffinity(providerSpec.Region, providerSpec.Zones, k8sVersion)
 
 	userData := string(secret.Data["userData"])
 	if len(providerSpec.SSHKeys) > 0 {
@@ -233,6 +256,7 @@ func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, pr
 					DNSPolicy: dnsPolicy,
 					DNSConfig: dnsConfig,
 					Networks:  networks,
+					Affinity:  affinity,
 				},
 			},
 			DataVolumeTemplates: []cdi.DataVolume{

@@ -21,7 +21,9 @@ import (
 
 	api "github.com/gardener/machine-controller-manager-provider-kubevirt/pkg/kubevirt/apis"
 
+	"github.com/Masterminds/semver"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	kubevirtv1 "kubevirt.io/client-go/api/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -30,13 +32,9 @@ import (
 // GetClient creates a client from the kubeconfig saved in the "kubeconfig" field of the given secret.
 // It also returns the namespace of the kubeconfig's current context.
 func GetClient(secret *corev1.Secret) (client.Client, string, error) {
-	kubeconfig, ok := secret.Data["kubeconfig"]
-	if !ok {
-		return nil, "", errors.New("missing kubeconfig field in secret")
-	}
-	clientConfig, err := clientcmd.NewClientConfigFromBytes(kubeconfig)
+	clientConfig, err := getClientConfig(secret)
 	if err != nil {
-		return nil, "", fmt.Errorf("could not create client config from kubeconfig: %v", err)
+		return nil, "", err
 	}
 	config, err := clientConfig.ClientConfig()
 	if err != nil {
@@ -51,6 +49,39 @@ func GetClient(secret *corev1.Secret) (client.Client, string, error) {
 		return nil, "", fmt.Errorf("could not get namespace from client config: %v", err)
 	}
 	return c, namespace, nil
+}
+
+// GetServerVersion gets the server version from the kubeconfig saved in the "kubeconfig" field of the given secret.
+func GetServerVersion(secret *corev1.Secret) (string, error) {
+	clientConfig, err := getClientConfig(secret)
+	if err != nil {
+		return "", err
+	}
+	config, err := clientConfig.ClientConfig()
+	if err != nil {
+		return "", fmt.Errorf("could not get REST config from client config: %v", err)
+	}
+	cs, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return "", fmt.Errorf("could not create clientset from REST config: %v", err)
+	}
+	versionInfo, err := cs.ServerVersion()
+	if err != nil {
+		return "", fmt.Errorf("could not get server version: %v", err)
+	}
+	return versionInfo.GitVersion, nil
+}
+
+func getClientConfig(secret *corev1.Secret) (clientcmd.ClientConfig, error) {
+	kubeconfig, ok := secret.Data["kubeconfig"]
+	if !ok {
+		return nil, errors.New("missing kubeconfig field in secret")
+	}
+	clientConfig, err := clientcmd.NewClientConfigFromBytes(kubeconfig)
+	if err != nil {
+		return nil, fmt.Errorf("could not create client config from kubeconfig: %v", err)
+	}
+	return clientConfig, nil
 }
 
 func encodeProviderID(machineName string) string {
@@ -136,6 +167,84 @@ ethernets:
 `
 
 	return interfaces, networks, networkData
+}
+
+const (
+	// defaultRegion is the name of the default region.
+	// VMs using this region are scheduled on nodes for which a region failure domain is not specified.
+	defaultRegion = "default"
+	// defaultZone is the name of the default zone.
+	// VMs using this zone are scheduled on nodes for which a zone failure domain is not specified.
+	defaultZone = "default"
+)
+
+func buildAffinity(region string, zones []string, k8sVersion string) *corev1.Affinity {
+	var affinity *corev1.Affinity
+	if region != "" {
+		// Get region and zone labels
+		regionLabel, zoneLabel := getRegionAndZoneLabels(k8sVersion)
+
+		// Add match expression for the region label
+		var matchExpressions []corev1.NodeSelectorRequirement
+		if region != defaultRegion {
+			matchExpressions = append(matchExpressions, corev1.NodeSelectorRequirement{
+				Key:      regionLabel,
+				Operator: corev1.NodeSelectorOpIn,
+				Values:   []string{region},
+			})
+		} else {
+			matchExpressions = append(matchExpressions, corev1.NodeSelectorRequirement{
+				Key:      regionLabel,
+				Operator: corev1.NodeSelectorOpDoesNotExist,
+			})
+		}
+
+		// If there are zones, add match expression for the zone label
+		if len(zones) > 0 {
+			if len(zones) > 1 || zones[0] != defaultZone {
+				matchExpressions = append(matchExpressions, corev1.NodeSelectorRequirement{
+					Key:      zoneLabel,
+					Operator: corev1.NodeSelectorOpIn,
+					Values:   zones,
+				})
+			} else {
+				matchExpressions = append(matchExpressions, corev1.NodeSelectorRequirement{
+					Key:      zoneLabel,
+					Operator: corev1.NodeSelectorOpDoesNotExist,
+				})
+			}
+		}
+
+		// Build affinity with the match expressions
+		affinity = &corev1.Affinity{
+			NodeAffinity: &corev1.NodeAffinity{
+				RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+					NodeSelectorTerms: []corev1.NodeSelectorTerm{
+						{
+							MatchExpressions: matchExpressions,
+						},
+					},
+				},
+			},
+		}
+	}
+	return affinity
+}
+
+func getRegionAndZoneLabels(k8sVersion string) (string, string) {
+	c, _ := semver.NewConstraint("< 1.17")
+	if c.Check(semver.MustParse(normalizeVersion(k8sVersion))) {
+		return corev1.LabelZoneRegion, corev1.LabelZoneFailureDomain
+	}
+	return "topology.kubernetes.io/region", "topology.kubernetes.io/zone"
+}
+
+func normalizeVersion(version string) string {
+	v := strings.Replace(version, "v", "", -1)
+	if idx := strings.IndexAny(v, "-+"); idx != -1 {
+		v = v[:idx]
+	}
+	return v
 }
 
 func addUserSSHKeysToUserData(userData string, sshKeys []string) (string, error) {

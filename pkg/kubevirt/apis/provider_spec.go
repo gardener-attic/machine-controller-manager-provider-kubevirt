@@ -42,6 +42,11 @@ type KubeVirtProviderSpec struct {
 	// the pod network won't be added, otherwise it will be added as default.
 	// +optional
 	Networks []NetworkSpec `json:"networks,omitempty"`
+	// Region is the name of the region for the VM.
+	Region string
+	// Zones is a list of availability zones for the VM.
+	// +optional
+	Zones []string
 	// Tags is an optional map of tags that is added to the VM as labels.
 	// +optional
 	Tags map[string]string `json:"tags,omitempty"`
