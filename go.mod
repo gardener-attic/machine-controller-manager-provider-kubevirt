@@ -3,6 +3,7 @@ module github.com/gardener/machine-controller-manager-provider-kubevirt
 go 1.13
 
 require (
+	github.com/Masterminds/semver v1.5.0
 	github.com/gardener/machine-controller-manager v0.29.0
 	github.com/onsi/ginkgo v1.10.1
 	github.com/onsi/gomega v1.7.0

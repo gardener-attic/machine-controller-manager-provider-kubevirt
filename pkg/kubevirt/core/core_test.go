@@ -37,8 +37,9 @@ var (
 		CPUs:             "1",
 		Memory:           "4096M",
 	}
-	machineName = "kubevirt-machine"
-	namespace   = "default"
+	machineName   = "kubevirt-machine"
+	namespace     = "default"
+	serverVersion = "1.18"
 )
 
 func init() {
@@ -51,7 +52,8 @@ func init() {
 func TestPluginSPIImpl_CreateMachine(t *testing.T) {
 	fakeClient := fake.NewFakeClientWithScheme(scheme.Scheme)
 	t.Run("CreateMachine", func(t *testing.T) {
-		plugin, err := NewPluginSPIImpl(newMockClientFactory(fakeClient, namespace))
+		mf := newMockFactory(fakeClient, namespace, serverVersion)
+		plugin, err := NewPluginSPIImpl(mf, mf)
 		if err != nil {
 			t.Fatalf("failed to create plugin: %v", err)
 		}
@@ -75,7 +77,8 @@ func TestPluginSPIImpl_CreateMachine(t *testing.T) {
 func TestPluginSPIImpl_GetMachineStatus(t *testing.T) {
 	fakeClient := fake.NewFakeClientWithScheme(scheme.Scheme)
 	t.Run("GetMachineStatus", func(t *testing.T) {
-		plugin, err := NewPluginSPIImpl(newMockClientFactory(fakeClient, namespace))
+		mf := newMockFactory(fakeClient, namespace, serverVersion)
+		plugin, err := NewPluginSPIImpl(mf, mf)
 		if err != nil {
 			t.Fatalf("failed to create plugin: %v", err)
 		}
@@ -99,7 +102,8 @@ func TestPluginSPIImpl_GetMachineStatus(t *testing.T) {
 func TestPluginSPIImpl_ListMachines(t *testing.T) {
 	fakeClient := fake.NewFakeClientWithScheme(scheme.Scheme)
 	t.Run("ListMachines", func(t *testing.T) {
-		plugin, err := NewPluginSPIImpl(newMockClientFactory(fakeClient, namespace))
+		mf := newMockFactory(fakeClient, namespace, serverVersion)
+		plugin, err := NewPluginSPIImpl(mf, mf)
 		if err != nil {
 			t.Fatalf("failed to create plugin: %v", err)
 		}
@@ -123,7 +127,8 @@ func TestPluginSPIImpl_ListMachines(t *testing.T) {
 func TestPluginSPIImpl_ShutDownMachine(t *testing.T) {
 	fakeClient := fake.NewFakeClientWithScheme(scheme.Scheme)
 	t.Run("ShutDownMachine", func(t *testing.T) {
-		plugin, err := NewPluginSPIImpl(newMockClientFactory(fakeClient, namespace))
+		mf := newMockFactory(fakeClient, namespace, serverVersion)
+		plugin, err := NewPluginSPIImpl(mf, mf)
 		if err != nil {
 			t.Fatalf("failed to create plugin: %v", err)
 		}
@@ -152,7 +157,8 @@ func TestPluginSPIImpl_ShutDownMachine(t *testing.T) {
 func TestPluginSPIImpl_DeleteMachine(t *testing.T) {
 	fakeClient := fake.NewFakeClientWithScheme(scheme.Scheme)
 	t.Run("DeleteMachine", func(t *testing.T) {
-		plugin, err := NewPluginSPIImpl(newMockClientFactory(fakeClient, namespace))
+		mf := newMockFactory(fakeClient, namespace, serverVersion)
+		plugin, err := NewPluginSPIImpl(mf, mf)
 		if err != nil {
 			t.Fatalf("failed to create plugin: %v", err)
 		}
@@ -178,18 +184,24 @@ func TestPluginSPIImpl_DeleteMachine(t *testing.T) {
 	})
 }
 
-type mockClientFactory struct {
-	client    client.Client
-	namespace string
+type mockFactory struct {
+	client        client.Client
+	namespace     string
+	serverVersion string
 }
 
-func newMockClientFactory(client client.Client, namespace string) *mockClientFactory {
-	return &mockClientFactory{
-		client:    client,
-		namespace: namespace,
+func newMockFactory(client client.Client, namespace, serverVersion string) *mockFactory {
+	return &mockFactory{
+		client:        client,
+		namespace:     namespace,
+		serverVersion: serverVersion,
 	}
 }
 
-func (cf mockClientFactory) GetClient(secret *corev1.Secret) (client.Client, string, error) {
+func (cf mockFactory) GetClient(secret *corev1.Secret) (client.Client, string, error) {
 	return cf.client, cf.namespace, nil
+}
+
+func (cf mockFactory) GetServerVersion(secret *corev1.Secret) (string, error) {
+	return cf.serverVersion, nil
 }
