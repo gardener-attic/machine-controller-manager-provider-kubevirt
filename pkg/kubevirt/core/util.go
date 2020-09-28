@@ -164,6 +164,8 @@ ethernets:
     match:
       name: "e*"
     dhcp4: true
+    nameservers:
+      addresses: [8.8.8.8]
 `
 
 	return interfaces, networks, networkData
