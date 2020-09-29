@@ -26,7 +26,6 @@ import (
 	clouderrors "github.com/gardener/machine-controller-manager-provider-kubevirt/pkg/kubevirt/errors"
 	"github.com/gardener/machine-controller-manager-provider-kubevirt/pkg/kubevirt/util"
 
-	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -113,23 +112,7 @@ func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, pr
 		pvcRequest                    = corev1.ResourceList{corev1.ResourceStorage: pvcSize}
 		terminationGracePeriodSeconds = int64(30)
 		userdataSecretName            = fmt.Sprintf("userdata-%s-%s", machineName, strconv.Itoa(int(time.Now().Unix())))
-
-		dnsPolicy corev1.DNSPolicy
-		dnsConfig *corev1.PodDNSConfig
 	)
-
-	if providerSpec.DNSPolicy != "" {
-		dnsPolicy, err = util.DNSPolicy(providerSpec.DNSPolicy)
-		if err != nil {
-			return "", fmt.Errorf("invalid DNS policy: %v", err)
-		}
-	}
-
-	if providerSpec.DNSConfig != "" {
-		if err := yaml.Unmarshal([]byte(providerSpec.DNSConfig), dnsConfig); err != nil {
-			return "", fmt.Errorf(`failed to unmarshal "dnsConfig" field: %v`, err)
-		}
-	}
 
 	interfaces, networks, networkData := buildNetworks(providerSpec.Networks)
 
@@ -253,8 +236,8 @@ func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, pr
 							},
 						},
 					},
-					DNSPolicy: dnsPolicy,
-					DNSConfig: dnsConfig,
+					DNSPolicy: providerSpec.DNSPolicy,
+					DNSConfig: providerSpec.DNSConfig,
 					Networks:  networks,
 					Affinity:  affinity,
 				},

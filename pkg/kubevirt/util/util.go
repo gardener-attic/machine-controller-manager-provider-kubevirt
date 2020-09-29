@@ -21,22 +21,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
-// DNSPolicy receives a policy as a string and converts it to a kubevirt DNSPolicy to be used in the virtual machine.
-func DNSPolicy(policy string) (corev1.DNSPolicy, error) {
-	switch policy {
-	case string(corev1.DNSClusterFirstWithHostNet):
-		return corev1.DNSClusterFirstWithHostNet, nil
-	case string(corev1.DNSClusterFirst):
-		return corev1.DNSClusterFirst, nil
-	case string(corev1.DNSDefault):
-		return corev1.DNSDefault, nil
-	case string(corev1.DNSNone):
-		return corev1.DNSNone, nil
-	}
-
-	return "", fmt.Errorf("unknown DNS policy: %s", policy)
-}
-
 // ParseResources receives cpus and memory parameters and parse them as a ResourceList to be used in the virtual machine.
 func ParseResources(cpus, memory string) (*corev1.ResourceList, error) {
 	memoryResource, err := resource.ParseQuantity(memory)

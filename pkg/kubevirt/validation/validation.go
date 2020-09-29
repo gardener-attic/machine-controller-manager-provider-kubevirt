@@ -22,7 +22,6 @@ import (
 	api "github.com/gardener/machine-controller-manager-provider-kubevirt/pkg/kubevirt/apis"
 	"github.com/gardener/machine-controller-manager-provider-kubevirt/pkg/kubevirt/util"
 
-	"gopkg.in/yaml.v2"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/client-go/tools/clientcmd"
@@ -54,18 +53,16 @@ func ValidateKubevirtProviderSpecAndSecret(spec *api.KubeVirtProviderSpec, secre
 		validationErrors = append(validationErrors, fmt.Errorf("failed to parse value of pvcSize field: %v", err))
 	}
 	if spec.DNSPolicy != "" {
-		dnsPolicy, err := util.DNSPolicy(spec.DNSPolicy)
-		if err != nil {
-			validationErrors = append(validationErrors, fmt.Errorf("invalid dns policy: %v", err))
+		switch spec.DNSPolicy {
+		case corev1.DNSDefault, corev1.DNSClusterFirstWithHostNet, corev1.DNSClusterFirst, corev1.DNSNone:
+			break
+		default:
+			validationErrors = append(validationErrors, fmt.Errorf("invalid dns policy: %v", spec.DNSPolicy))
 		}
 
-		if dnsPolicy == corev1.DNSNone {
-			if spec.DNSConfig != "" {
-				dnsConfig := &corev1.PodDNSConfig{}
-				if err := yaml.Unmarshal([]byte(spec.DNSConfig), &dnsConfig); err != nil {
-					validationErrors = append(validationErrors, fmt.Errorf("failed to unmarshal dnsConfig field %v", err))
-				}
-				if len(dnsConfig.Nameservers) == 0 {
+		if spec.DNSPolicy == corev1.DNSNone {
+			if spec.DNSConfig != nil {
+				if len(spec.DNSConfig.Nameservers) == 0 {
 					validationErrors = append(validationErrors, errors.New("dns config must specify nameservers when dns policy is None"))
 				}
 			} else {
