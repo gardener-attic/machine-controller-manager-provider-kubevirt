@@ -14,6 +14,10 @@
 
 package api
 
+import (
+	corev1 "k8s.io/api/core/v1"
+)
+
 // KubeVirtProviderSpec is the spec to be used while parsing the calls.
 type KubeVirtProviderSpec struct {
 	// SourceURL is the HTTP URL of the source image imported by CDI.
@@ -29,12 +33,12 @@ type KubeVirtProviderSpec struct {
 	// DNSConfig is the DNS configuration of the VM pod.
 	// The parameters specified here will be merged with the generated DNS configuration based on DNSPolicy.
 	// +optional
-	DNSConfig string `json:"dnsConfig,omitempty"`
+	DNSConfig *corev1.PodDNSConfig `json:"dnsConfig,omitempty"`
 	// DNSPolicy is the DNS policy for the VM pod.
 	// Defaults to "ClusterFirst" and valid values are 'ClusterFirstWithHostNet', 'ClusterFirst', 'Default' or 'None'.
 	// To have DNS options set along with hostNetwork, specify DNS policy as 'ClusterFirstWithHostNet'.
 	// +optional
-	DNSPolicy string `json:"dnsPolicy,omitempty"`
+	DNSPolicy corev1.DNSPolicy `json:"dnsPolicy,omitempty"`
 	// SSHKeys is an optional list of SSH public keys added to the VM (may already be included in UserData)
 	// +optional
 	SSHKeys []string `json:"sshKeys,omitempty"`
