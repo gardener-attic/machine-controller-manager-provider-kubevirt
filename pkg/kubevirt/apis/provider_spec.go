@@ -16,6 +16,7 @@ package api
 
 import (
 	corev1 "k8s.io/api/core/v1"
+	kubevirtv1 "kubevirt.io/client-go/api/v1"
 )
 
 // KubeVirtProviderSpec is the spec to be used while parsing the calls.
@@ -54,6 +55,12 @@ type KubeVirtProviderSpec struct {
 	// Tags is an optional map of tags that is added to the VM as labels.
 	// +optional
 	Tags map[string]string `json:"tags,omitempty"`
+	// MemoryFeatures allows specifying the VirtualMachineInstance memory features like huge pages and guest memory settings.
+	// Each feature might require appropriate FeatureGate enabled.
+	// For hugepages take a look at:
+	// k8s - https://kubernetes.io/docs/tasks/manage-hugepages/scheduling-hugepages/
+	// okd - https://docs.okd.io/3.9/scaling_performance/managing_hugepages.html#huge-pages-prerequisites
+	MemoryFeatures *kubevirtv1.Memory
 }
 
 // NetworkSpec contains information about a network.

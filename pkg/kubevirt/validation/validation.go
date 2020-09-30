@@ -71,6 +71,14 @@ func ValidateKubevirtProviderSpecAndSecret(spec *api.KubeVirtProviderSpec, secre
 		}
 	}
 
+	if spec.MemoryFeatures != nil && spec.MemoryFeatures.Hugepages != nil {
+		_, err := resource.ParseQuantity(spec.MemoryFeatures.Hugepages.PageSize)
+		if err != nil {
+			validationErrors = append(validationErrors, fmt.Errorf("invalid value of hugepages size '%v'",
+				spec.MemoryFeatures.Hugepages.PageSize))
+		}
+	}
+
 	validationErrors = append(validationErrors, validateSecrets(secrets)...)
 
 	return validationErrors
