@@ -248,6 +248,12 @@ func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, pr
 		},
 	}
 
+	if providerSpec.MemoryFeatures != nil && providerSpec.MemoryFeatures.Hugepages != nil {
+		virtualMachine.Spec.Template.Spec.Domain.Memory = &kubevirtv1.Memory{
+			Hugepages: providerSpec.MemoryFeatures.Hugepages,
+		}
+	}
+
 	if err := c.Create(ctx, virtualMachine); err != nil {
 		return "", fmt.Errorf("failed to create VirtualMachine: %v", err)
 	}
