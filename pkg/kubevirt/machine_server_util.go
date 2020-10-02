@@ -25,12 +25,15 @@ func decodeProviderSpecAndSecret(machineClass *v1alpha1.MachineClass, secret *co
 	// Extract providerSpec
 	err := json.Unmarshal(machineClass.ProviderSpec.Raw, &providerSpec)
 	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
+		wrapped := errors.Wrap(err, "could not unmarshal provider spec from JSON")
+		klog.V(2).Infof(wrapped.Error())
+		return nil, status.Error(codes.Internal, wrapped.Error())
 	}
 
 	validationErrors := validation.ValidateKubevirtProviderSpecAndSecret(providerSpec, secret)
 	if validationErrors != nil {
-		err = fmt.Errorf("error while validating ProviderSpec %v", validationErrors)
+		err = fmt.Errorf("could not validate provider spec and secret: %v", validationErrors)
+		klog.V(2).Infof(err.Error())
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
@@ -49,7 +52,7 @@ func prepareErrorf(err error, format string, args ...interface{}) error {
 		wrapped = err
 	default:
 		code = codes.Internal
-		wrapped = errors.Wrap(err, fmt.Sprintf(format, args...))
+		wrapped = errors.Wrapf(err, format, args...)
 	}
 	klog.V(2).Infof(wrapped.Error())
 	return status.Error(code, wrapped.Error())
