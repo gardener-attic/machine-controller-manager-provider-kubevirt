@@ -54,7 +54,7 @@ func (p *MachinePlugin) CreateMachine(ctx context.Context, req *driver.CreateMac
 
 	providerSpec, err := decodeProviderSpecAndSecret(req.MachineClass, req.Secret)
 	if err != nil {
-		return nil, prepareErrorf(err, "could not decode provider spec and secret")
+		return nil, err
 	}
 
 	providerID, err := p.SPI.CreateMachine(ctx, req.Machine.Name, providerSpec, req.Secret)
@@ -88,7 +88,7 @@ func (p *MachinePlugin) DeleteMachine(ctx context.Context, req *driver.DeleteMac
 
 	providerSpec, err := decodeProviderSpecAndSecret(req.MachineClass, req.Secret)
 	if err != nil {
-		return nil, prepareErrorf(err, "could not decode provider spec and secret")
+		return nil, err
 	}
 
 	providerID, err := p.SPI.DeleteMachine(ctx, req.Machine.Name, req.Machine.Spec.ProviderID, providerSpec, req.Secret)
@@ -125,7 +125,7 @@ func (p *MachinePlugin) GetMachineStatus(ctx context.Context, req *driver.GetMac
 
 	providerSpec, err := decodeProviderSpecAndSecret(req.MachineClass, req.Secret)
 	if err != nil {
-		return nil, prepareErrorf(err, "could not decode provider spec and secret")
+		return nil, err
 	}
 
 	providerID, err := p.SPI.GetMachineStatus(ctx, req.Machine.Name, req.Machine.Spec.ProviderID, providerSpec, req.Secret)
@@ -163,7 +163,7 @@ func (p *MachinePlugin) ListMachines(ctx context.Context, req *driver.ListMachin
 
 	providerSpec, err := decodeProviderSpecAndSecret(req.MachineClass, req.Secret)
 	if err != nil {
-		return nil, prepareErrorf(err, "could not decode provider spec and secret")
+		return nil, err
 	}
 
 	machineList, err := p.SPI.ListMachines(ctx, providerSpec, req.Secret)
