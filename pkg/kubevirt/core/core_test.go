@@ -22,8 +22,10 @@ import (
 	api "github.com/gardener/machine-controller-manager-provider-kubevirt/pkg/kubevirt/apis"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/klog"
+	kubevirtv1 "kubevirt.io/client-go/api/v1"
 	cdi "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -33,9 +35,17 @@ var (
 	providerSpec = &api.KubeVirtProviderSpec{
 		SourceURL:        "http://test-image.com",
 		StorageClassName: "test-sc",
-		PVCSize:          "10Gi",
-		CPUs:             "1",
-		Memory:           "4096M",
+		PVCSize:          resource.MustParse("10Gi"),
+		Resources: kubevirtv1.ResourceRequirements{
+			Requests: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("1"),
+				corev1.ResourceMemory: resource.MustParse("4096Mi"),
+			},
+			Limits: corev1.ResourceList{
+				corev1.ResourceCPU:    resource.MustParse("2"),
+				corev1.ResourceMemory: resource.MustParse("8Gi"),
+			},
+		},
 	}
 	machineName   = "kubevirt-machine"
 	namespace     = "default"
