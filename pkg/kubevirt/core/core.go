@@ -19,28 +19,25 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	api "github.com/gardener/machine-controller-manager-provider-kubevirt/pkg/kubevirt/apis"
-	clouderrors "github.com/gardener/machine-controller-manager-provider-kubevirt/pkg/kubevirt/errors"
+	"github.com/gardener/machine-controller-manager-provider-kubevirt/pkg/kubevirt/errors"
 
 	corev1 "k8s.io/api/core/v1"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog"
-	utilpointer "k8s.io/utils/pointer"
+	"k8s.io/utils/pointer"
 	kubevirtv1 "kubevirt.io/client-go/api/v1"
-	cdi "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
 	// ProviderName specifies the machine controller for kubevirt cloud provider
-	ProviderName      = "kubevirt"
-	machineClassLabel = "mcm.gardener.cloud/machineclass"
+	ProviderName = "kubevirt"
 )
 
 // ClientFactory creates a client from the kubeconfig saved in the "kubeconfig" field of the given secret.
@@ -91,84 +88,44 @@ func NewPluginSPIImpl(cf ClientFactory, svf ServerVersionFactory) (*PluginSPIImp
 // CreateMachine creates a Kubevirt virtual machine with the given name and an associated data volume based on the
 // DataVolumeTemplate, using the given provider spec. It also creates a secret where the userdata(cloud-init) are saved and mounted on the VM.
 func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, providerSpec *api.KubeVirtProviderSpec, secret *corev1.Secret) (providerID string, err error) {
+	// Generate a unique name for the userdata secret
+	userDataSecretName := fmt.Sprintf("userdata-%s-%s", machineName, strconv.Itoa(int(time.Now().Unix())))
+
+	// Get client and namespace from secret
 	c, namespace, err := p.cf.GetClient(secret)
 	if err != nil {
 		return "", fmt.Errorf("failed to create client: %v", err)
 	}
 
-	var (
-		terminationGracePeriodSeconds = int64(30)
-		userdataSecretName            = fmt.Sprintf("userdata-%s-%s", machineName, strconv.Itoa(int(time.Now().Unix())))
-	)
-
+	// Build interfaces and networks
 	interfaces, networks, networkData := buildNetworks(providerSpec.Networks)
 
+	// Build disks, volumes, and data volumes
+	disks, volumes, dataVolumes := buildVolumes(machineName, namespace, userDataSecretName, networkData, providerSpec.RootVolume, providerSpec.AdditionalVolumes)
+
+	// Get Kubernetes version
 	k8sVersion, err := p.svf.GetServerVersion(secret)
 	if err != nil {
 		return "", fmt.Errorf("failed to get server version: %v", err)
 	}
 
+	// Build affinity
 	affinity := buildAffinity(providerSpec.Region, providerSpec.Zone, k8sVersion)
 
-	userData := string(secret.Data["userData"])
-	if len(providerSpec.SSHKeys) > 0 {
-		var userSSHKeys []string
-		for _, sshKey := range providerSpec.SSHKeys {
-			userSSHKeys = append(userSSHKeys, strings.TrimSpace(sshKey))
-		}
-
-		userData, err = addUserSSHKeysToUserData(userData, userSSHKeys)
-		if err != nil {
-			return "", fmt.Errorf("failed to add ssh keys to cloud-init: %v", err)
-		}
+	// Add SSH keys to user data
+	userData, err := addUserSSHKeysToUserData(string(secret.Data["userData"]), providerSpec.SSHKeys)
+	if err != nil {
+		return "", fmt.Errorf("failed to add ssh keys to cloud-init: %v", err)
 	}
 
-	var vmLabels = map[string]string{}
+	// Initialize VM labels
+	vmLabels := make(map[string]string)
 	if len(providerSpec.Tags) > 0 {
 		vmLabels = providerSpec.Tags
 	}
 	vmLabels["kubevirt.io/vm"] = machineName
 
-	machineClassName := vmLabels[machineClassLabel]
-	dataVolumeName, err := p.getDataVolume(ctx, c, machineClassName, namespace)
-	if err != nil {
-		return "", err
-	}
-
-	dataVolumeTemplate := cdi.DataVolume{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      machineName,
-			Namespace: namespace,
-		},
-		Spec: cdi.DataVolumeSpec{
-			PVC: &corev1.PersistentVolumeClaimSpec{
-				StorageClassName: utilpointer.StringPtr(providerSpec.StorageClassName),
-				AccessModes: []corev1.PersistentVolumeAccessMode{
-					"ReadWriteOnce",
-				},
-				Resources: corev1.ResourceRequirements{
-					Requests: corev1.ResourceList{
-						corev1.ResourceStorage: providerSpec.PVCSize,
-					},
-				},
-			},
-			Source: cdi.DataVolumeSource{
-				HTTP: &cdi.DataVolumeSourceHTTP{
-					URL: providerSpec.SourceURL,
-				},
-			},
-		},
-	}
-
-	if dataVolumeName != "" {
-		dataVolumeTemplate.Spec.Source = cdi.DataVolumeSource{
-			PVC: &cdi.DataVolumeSourcePVC{
-				Name:      dataVolumeName,
-				Namespace: namespace,
-			},
-		}
-	}
-
+	// Build the VM
 	virtualMachine := &kubevirtv1.VirtualMachine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      machineName,
@@ -176,7 +133,7 @@ func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, pr
 			Labels:    vmLabels,
 		},
 		Spec: kubevirtv1.VirtualMachineSpec{
-			Running: utilpointer.BoolPtr(true),
+			Running: pointer.BoolPtr(true),
 			Template: &kubevirtv1.VirtualMachineInstanceTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
@@ -188,67 +145,43 @@ func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, pr
 						CPU:    providerSpec.CPU,
 						Memory: providerSpec.Memory,
 						Devices: kubevirtv1.Devices{
-							Disks: []kubevirtv1.Disk{
-								{
-									Name:       "datavolumedisk",
-									DiskDevice: kubevirtv1.DiskDevice{Disk: &kubevirtv1.DiskTarget{Bus: "virtio"}},
-								},
-								{
-									Name:       "cloudinitdisk",
-									DiskDevice: kubevirtv1.DiskDevice{Disk: &kubevirtv1.DiskTarget{Bus: "virtio"}},
-								},
-							},
+							Disks:      disks,
 							Interfaces: interfaces,
 						},
 						Resources: providerSpec.Resources,
 					},
-					TerminationGracePeriodSeconds: &terminationGracePeriodSeconds,
-					Volumes: []kubevirtv1.Volume{
-						{
-							Name: "datavolumedisk",
-							VolumeSource: kubevirtv1.VolumeSource{
-								DataVolume: &kubevirtv1.DataVolumeSource{
-									Name: machineName,
-								},
-							},
-						},
-						{
-							Name: "cloudinitdisk",
-							VolumeSource: kubevirtv1.VolumeSource{
-								CloudInitNoCloud: &kubevirtv1.CloudInitNoCloudSource{
-									UserDataSecretRef: &corev1.LocalObjectReference{
-										Name: userdataSecretName,
-									},
-									NetworkData: networkData,
-								},
-							},
-						},
-					},
-					DNSPolicy: providerSpec.DNSPolicy,
-					DNSConfig: providerSpec.DNSConfig,
-					Networks:  networks,
-					Affinity:  affinity,
+					Affinity:                      affinity,
+					TerminationGracePeriodSeconds: pointer.Int64Ptr(30),
+					Volumes:                       volumes,
+					Networks:                      networks,
+					DNSPolicy:                     providerSpec.DNSPolicy,
+					DNSConfig:                     providerSpec.DNSConfig,
 				},
 			},
-			DataVolumeTemplates: []cdi.DataVolume{
-				dataVolumeTemplate,
-			},
+			DataVolumeTemplates: dataVolumes,
 		},
 	}
 
+	// Create the VM
 	if err := c.Create(ctx, virtualMachine); err != nil {
 		return "", fmt.Errorf("failed to create VirtualMachine: %v", err)
 	}
 
+	// Build the userdata secret
 	userDataSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:            userdataSecretName,
-			Namespace:       virtualMachine.Namespace,
-			OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(virtualMachine, kubevirtv1.VirtualMachineGroupVersionKind)},
+			Name:      userDataSecretName,
+			Namespace: virtualMachine.Namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(virtualMachine, kubevirtv1.VirtualMachineGroupVersionKind),
+			},
 		},
-		Data: map[string][]byte{"userdata": []byte(userData)},
+		Data: map[string][]byte{
+			"userdata": []byte(userData),
+		},
 	}
 
+	// Create the userdata secret
 	if err := c.Create(ctx, userDataSecret); err != nil {
 		return "", fmt.Errorf("failed to create secret for userdata: %v", err)
 	}
@@ -265,7 +198,7 @@ func (p PluginSPIImpl) DeleteMachine(ctx context.Context, machineName, _ string,
 
 	virtualMachine, err := p.getVM(ctx, c, machineName, namespace)
 	if err != nil {
-		if clouderrors.IsMachineNotFoundError(err) {
+		if errors.IsMachineNotFoundError(err) {
 			klog.V(2).Infof("skip VirtualMachine evicting, VirtualMachine instance %s is not found", machineName)
 			return "", nil
 		}
@@ -330,7 +263,7 @@ func (p PluginSPIImpl) ShutDownMachine(ctx context.Context, machineName, _ strin
 		return "", err
 	}
 
-	virtualMachine.Spec.Running = utilpointer.BoolPtr(false)
+	virtualMachine.Spec.Running = pointer.BoolPtr(false)
 	if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		return c.Update(ctx, virtualMachine)
 	}); err != nil {
@@ -343,8 +276,8 @@ func (p PluginSPIImpl) ShutDownMachine(ctx context.Context, machineName, _ strin
 func (p PluginSPIImpl) getVM(ctx context.Context, c client.Client, machineName, namespace string) (*kubevirtv1.VirtualMachine, error) {
 	virtualMachine := &kubevirtv1.VirtualMachine{}
 	if err := c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: machineName}, virtualMachine); err != nil {
-		if kerrors.IsNotFound(err) {
-			return nil, &clouderrors.MachineNotFoundError{
+		if apierrors.IsNotFound(err) {
+			return nil, &errors.MachineNotFoundError{
 				Name: machineName,
 			}
 		}
@@ -363,16 +296,4 @@ func (p PluginSPIImpl) listVMs(ctx context.Context, c client.Client, namespace s
 		return nil, fmt.Errorf("failed to list VirtualMachines: %v", err)
 	}
 	return virtualMachineList, nil
-}
-
-func (p PluginSPIImpl) getDataVolume(ctx context.Context, c client.Client, dataVolumeName, namespace string) (string, error) {
-	dataVolume := &cdi.DataVolume{}
-	if err := c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: dataVolumeName}, dataVolume); err != nil {
-		if kerrors.IsNotFound(err) {
-			return "", nil
-		}
-		return "", fmt.Errorf("failed to get DataVolume: %v", err)
-	}
-
-	return dataVolume.Name, nil
 }

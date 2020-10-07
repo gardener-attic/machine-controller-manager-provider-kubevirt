@@ -16,20 +16,19 @@ package api
 
 import (
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	kubevirtv1 "kubevirt.io/client-go/api/v1"
+	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 )
 
 // KubeVirtProviderSpec is the spec to be used while parsing the calls.
 type KubeVirtProviderSpec struct {
 	// Resources defines requests and limits resources of VMI
 	Resources kubevirtv1.ResourceRequirements `json:"resources"`
-	// SourceURL is the HTTP URL of the source image imported by CDI.
-	SourceURL string `json:"sourceURL"`
-	// StorageClassName is the name which CDI uses to in order to create claims.
-	StorageClassName string `json:"storageClassName"`
-	// PVCSize is the size of the PersistentVolumeClaim that is created during the image import by CDI.
-	PVCSize resource.Quantity `json:"pvcSize"`
+	// RootVolume is the specification for the root volume of the VM.
+	RootVolume cdicorev1alpha1.DataVolumeSpec `json:"rootVolume"`
+	// AdditionalVolumes is an optional list of additional volumes attached to the VM.
+	// +optional
+	AdditionalVolumes []AdditionalVolumeSpec `json:"additionalVolumes,omitempty"`
 	// Region is the name of the region for the VM.
 	Region string `json:"region"`
 	// Zone is the name of the zone for the VM.
@@ -63,6 +62,35 @@ type KubeVirtProviderSpec struct {
 	// okd - https://docs.okd.io/3.9/scaling_performance/managing_hugepages.html#huge-pages-prerequisites
 	// +optional
 	Memory *kubevirtv1.Memory `json:"memory,omitempty"`
+}
+
+// AdditionalVolumeSpec represents an additional volume attached to a VM.
+// Only one of its members may be specified.
+type AdditionalVolumeSpec struct {
+	// DataVolume is an optional specification of an additional data volume.
+	// +optional
+	DataVolume *cdicorev1alpha1.DataVolumeSpec `json:"dataVolume,omitempty"`
+	// VolumeSource is an optional reference to an additional volume source.
+	// +optional
+	VolumeSource *VolumeSource `json:"volumeSource,omitempty"`
+}
+
+// VolumeSource represents the source of a volume to mount.
+// Only one of its members may be specified.
+type VolumeSource struct {
+	// PersistentVolumeClaimVolumeSource represents a reference to a PersistentVolumeClaim in the same namespace.
+	// Directly attached to the vmi via qemu.
+	// More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#persistentvolumeclaims
+	// +optional
+	PersistentVolumeClaim *corev1.PersistentVolumeClaimVolumeSource `json:"persistentVolumeClaim,omitempty"`
+	// ConfigMapSource represents a reference to a ConfigMap in the same namespace.
+	// More info: https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/
+	// +optional
+	ConfigMap *kubevirtv1.ConfigMapVolumeSource `json:"configMap,omitempty"`
+	// SecretVolumeSource represents a reference to a secret data in the same namespace.
+	// More info: https://kubernetes.io/docs/concepts/configuration/secret/
+	// +optional
+	Secret *kubevirtv1.SecretVolumeSource `json:"secret,omitempty"`
 }
 
 // NetworkSpec contains information about a network.

@@ -16,36 +16,37 @@ import (
 	"k8s.io/klog"
 )
 
-// decodeProviderSpecAndSecret converts request parameters to api.ProviderSpec
+// decodeProviderSpecAndSecret decodes the provider spec from the given machine class and validates it, together with the given secret.
 func decodeProviderSpecAndSecret(machineClass *v1alpha1.MachineClass, secret *corev1.Secret) (*api.KubeVirtProviderSpec, error) {
-	var (
-		providerSpec *api.KubeVirtProviderSpec
-	)
-
-	// Extract providerSpec
-	err := json.Unmarshal(machineClass.ProviderSpec.Raw, &providerSpec)
-	if err != nil {
+	var spec *api.KubeVirtProviderSpec
+	if err := json.Unmarshal(machineClass.ProviderSpec.Raw, &spec); err != nil {
 		wrapped := errors.Wrap(err, "could not unmarshal provider spec from JSON")
 		klog.V(2).Infof(wrapped.Error())
 		return nil, status.Error(codes.Internal, wrapped.Error())
 	}
 
-	if errs := validation.ValidateKubevirtProviderSpec(providerSpec); len(errs) > 0 {
-		err = fmt.Errorf("could not validate provider spec: %v", errs)
+	if errs := validation.ValidateKubevirtProviderSpec(spec); len(errs) > 0 {
+		err := fmt.Errorf("could not validate provider spec: %v", errs)
 		klog.V(2).Infof(err.Error())
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	if errs := validation.ValidateKubevirtProviderSecrets(secret); len(errs) > 0 {
-		err = fmt.Errorf("could not validate provider secrets: %v", errs)
+	if secret == nil {
+		err := errors.New("provider secret is nil")
 		klog.V(2).Infof(err.Error())
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	return providerSpec, nil
+	if errs := validation.ValidateKubevirtProviderSecret(secret); len(errs) > 0 {
+		err := fmt.Errorf("could not validate provider secret: %v", errs)
+		klog.V(2).Infof(err.Error())
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	return spec, nil
 }
 
-// prepareErrorf preapre, format and wrap an error on the machine server level.
+// prepareErrorf prepares, formats, and wraps the given error in a status.Error.
 func prepareErrorf(err error, format string, args ...interface{}) error {
 	var (
 		code    codes.Code

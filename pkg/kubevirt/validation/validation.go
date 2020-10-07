@@ -16,17 +16,18 @@
 package validation
 
 import (
-	"errors"
 	"fmt"
 
 	api "github.com/gardener/machine-controller-manager-provider-kubevirt/pkg/kubevirt/apis"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/tools/clientcmd"
+	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 )
 
-// ValidateKubevirtProviderSpec validates kubevirt spec to check if all fields are present and valid
+// ValidateKubevirtProviderSpec validates the given kubevirt provider spec.
 func ValidateKubevirtProviderSpec(spec *api.KubeVirtProviderSpec) field.ErrorList {
 	errs := field.ErrorList{}
 
@@ -38,16 +39,19 @@ func ValidateKubevirtProviderSpec(spec *api.KubeVirtProviderSpec) field.ErrorLis
 		errs = append(errs, field.Required(requestsPath.Child("cpu"), "cannot be zero"))
 	}
 
-	if spec.SourceURL == "" {
-		errs = append(errs, field.Required(field.NewPath("sourceURL"), "cannot be empty"))
-	}
+	errs = append(errs, validateDataVolume(field.NewPath("rootVolume"), &spec.RootVolume)...)
 
-	if spec.StorageClassName == "" {
-		errs = append(errs, field.Required(field.NewPath("storageClassName"), "cannot be empty"))
-	}
+	for i, volume := range spec.AdditionalVolumes {
+		volumePath := field.NewPath("additionalVolumes").Index(i)
 
-	if spec.PVCSize.IsZero() {
-		errs = append(errs, field.Required(field.NewPath("pvcSize"), "cannot be zero"))
+		switch {
+		case volume.DataVolume != nil:
+			errs = append(errs, validateDataVolume(volumePath.Child("dataVolume"), volume.DataVolume)...)
+		case volume.VolumeSource != nil:
+			break
+		default:
+			errs = append(errs, field.Invalid(volumePath, volume, "invalid volume, either dataVolume or volumeSource must be specified"))
+		}
 	}
 
 	if spec.Region == "" {
@@ -66,18 +70,14 @@ func ValidateKubevirtProviderSpec(spec *api.KubeVirtProviderSpec) field.ErrorLis
 		case corev1.DNSDefault, corev1.DNSClusterFirstWithHostNet, corev1.DNSClusterFirst, corev1.DNSNone:
 			break
 		default:
-			errs = append(errs, field.Invalid(dnsPolicyPath, spec.DNSPolicy, "invalid dns policy"))
+			errs = append(errs, field.Invalid(dnsPolicyPath, spec.DNSPolicy, "invalid DNS policy"))
 		}
 
 		if spec.DNSPolicy == corev1.DNSNone {
-			if spec.DNSConfig != nil {
-				if len(spec.DNSConfig.Nameservers) == 0 {
-					errs = append(errs, field.Required(dnsConfigPath.Child("nameservers"),
-						fmt.Sprintf("cannot be empty when dns policy is %s", corev1.DNSNone)))
-				}
-			} else {
-				errs = append(errs, field.Required(dnsConfigPath,
-					fmt.Sprintf("cannot be empty when dns policy is %s", corev1.DNSNone)))
+			if spec.DNSConfig == nil {
+				errs = append(errs, field.Required(dnsConfigPath, fmt.Sprintf("cannot be empty when DNS policy is %s", corev1.DNSNone)))
+			} else if len(spec.DNSConfig.Nameservers) == 0 {
+				errs = append(errs, field.Required(dnsConfigPath.Child("nameservers"), fmt.Sprintf("cannot be empty when DNS policy is %s", corev1.DNSNone)))
 			}
 		}
 	}
@@ -85,27 +85,41 @@ func ValidateKubevirtProviderSpec(spec *api.KubeVirtProviderSpec) field.ErrorLis
 	return errs
 }
 
-// ValidateKubevirtProviderSecrets validates kubevirt secrets
-func ValidateKubevirtProviderSecrets(secret *corev1.Secret) []error {
-	var errs []error
+// ValidateKubevirtProviderSecret validates the given kubevirt provider secret.
+func ValidateKubevirtProviderSecret(secret *corev1.Secret) field.ErrorList {
+	errs := field.ErrorList{}
 
-	if secret == nil {
-		errs = append(errs, errors.New("secret object passed by the MCM is nil"))
+	if kubeconfig, ok := secret.Data["kubeconfig"]; !ok || len(kubeconfig) == 0 {
+		errs = append(errs, field.Required(field.NewPath("kubeconfig"), "cannot be empty"))
+	} else if _, err := clientcmd.RESTConfigFromKubeConfig(kubeconfig); err != nil {
+		errs = append(errs, field.Invalid(field.NewPath("kubeconfig"), kubeconfig, fmt.Sprintf("could not get client config: %v", err)))
+	}
+
+	if userData, ok := secret.Data["userData"]; !ok || len(userData) == 0 {
+		errs = append(errs, field.Required(field.NewPath("userData"), "cannot be empty"))
+	}
+
+	return errs
+}
+
+func validateDataVolume(path *field.Path, dataVolume *cdicorev1alpha1.DataVolumeSpec) field.ErrorList {
+	errs := field.ErrorList{}
+
+	pvcPath := path.Child("pvc")
+	if dataVolume.PVC == nil {
+		errs = append(errs, field.Required(pvcPath, "cannot be empty"))
 	} else {
-		kubeconfig, kubevirtKubeconifgCheck := secret.Data["kubeconfig"]
-		_, userdataCheck := secret.Data["userData"]
-
-		if !kubevirtKubeconifgCheck {
-			errs = append(errs, fmt.Errorf("secret kubeconfig is required field"))
-		} else {
-			_, err := clientcmd.RESTConfigFromKubeConfig(kubeconfig)
-			if err != nil {
-				errs = append(errs, fmt.Errorf("failed to decode kubeconfig: %v", err))
-			}
-		}
-		if !userdataCheck {
-			errs = append(errs, fmt.Errorf("secret userData is required field"))
+		if storage(&dataVolume.PVC.Resources.Requests).IsZero() {
+			errs = append(errs, field.Required(pvcPath.Child("resources").Child("requests").Child("storage"), "cannot be zero"))
 		}
 	}
+
 	return errs
+}
+
+func storage(resources *corev1.ResourceList) *resource.Quantity {
+	if val, ok := (*resources)[corev1.ResourceStorage]; ok {
+		return &val
+	}
+	return &resource.Quantity{}
 }

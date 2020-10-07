@@ -23,9 +23,11 @@ import (
 
 	"github.com/Masterminds/semver"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	kubevirtv1 "kubevirt.io/client-go/api/v1"
+	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -97,6 +99,9 @@ func buildNetworks(networkSpecs []api.NetworkSpec) ([]kubevirtv1.Interface, []ku
 		return nil, nil, ""
 	}
 
+	var interfaces []kubevirtv1.Interface
+	var networks []kubevirtv1.Network
+
 	// Determine whether there is a default network
 	hasDefault := false
 	for _, networkSpec := range networkSpecs {
@@ -106,12 +111,7 @@ func buildNetworks(networkSpecs []api.NetworkSpec) ([]kubevirtv1.Interface, []ku
 		}
 	}
 
-	// Initialize network counter
-	count := 0
-
 	// If no default network was specified, append an interface and a network for the pod network.
-	var interfaces []kubevirtv1.Interface
-	var networks []kubevirtv1.Network
 	if !hasDefault {
 		// Append an interface and a network for the pod network
 		interfaces = append(interfaces, kubevirtv1.Interface{
@@ -126,15 +126,12 @@ func buildNetworks(networkSpecs []api.NetworkSpec) ([]kubevirtv1.Interface, []ku
 				Pod: &kubevirtv1.PodNetwork{},
 			},
 		})
-
-		// Increment network counter
-		count++
 	}
 
 	// Append interfaces and networks for all network specs
-	for _, networkSpec := range networkSpecs {
+	for i, networkSpec := range networkSpecs {
 		// Generate a unique name for this network
-		name := fmt.Sprintf("net%d", count)
+		name := fmt.Sprintf("net%d", i)
 
 		// Append an interface and a network for this network spec
 		interfaces = append(interfaces, kubevirtv1.Interface{
@@ -152,9 +149,6 @@ func buildNetworks(networkSpecs []api.NetworkSpec) ([]kubevirtv1.Interface, []ku
 				},
 			},
 		})
-
-		// Increment network counter
-		count++
 	}
 
 	// Enable DHCP for all ethernet interfces in networkData
@@ -167,6 +161,114 @@ ethernets:
 `
 
 	return interfaces, networks, networkData
+}
+
+func buildVolumes(
+	machineName, namespace, userDataSecretName, networkData string,
+	rootVolume cdicorev1alpha1.DataVolumeSpec,
+	additionalVolumes []api.AdditionalVolumeSpec,
+) ([]kubevirtv1.Disk, []kubevirtv1.Volume, []cdicorev1alpha1.DataVolume) {
+	var disks []kubevirtv1.Disk
+	var volumes []kubevirtv1.Volume
+	var dataVolumes []cdicorev1alpha1.DataVolume
+
+	// Append a disk, a volume, and a data volume for the root disk
+	disks = append(disks, kubevirtv1.Disk{
+		Name: "rootdisk",
+		DiskDevice: kubevirtv1.DiskDevice{
+			Disk: &kubevirtv1.DiskTarget{
+				Bus: "virtio",
+			},
+		},
+	})
+	volumes = append(volumes, kubevirtv1.Volume{
+		Name: "rootdisk",
+		VolumeSource: kubevirtv1.VolumeSource{
+			DataVolume: &kubevirtv1.DataVolumeSource{
+				Name: machineName,
+			},
+		},
+	})
+	dataVolumes = append(dataVolumes, cdicorev1alpha1.DataVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      machineName,
+			Namespace: namespace,
+		},
+		Spec: rootVolume,
+	})
+
+	// Append a disk and a volume for the cloud-init disk
+	disks = append(disks, kubevirtv1.Disk{
+		Name: "cloudinitdisk",
+		DiskDevice: kubevirtv1.DiskDevice{
+			Disk: &kubevirtv1.DiskTarget{
+				Bus: "virtio",
+			},
+		},
+	})
+	volumes = append(volumes, kubevirtv1.Volume{
+		Name: "cloudinitdisk",
+		VolumeSource: kubevirtv1.VolumeSource{
+			CloudInitNoCloud: &kubevirtv1.CloudInitNoCloudSource{
+				UserDataSecretRef: &corev1.LocalObjectReference{
+					Name: userDataSecretName,
+				},
+				NetworkData: networkData,
+			},
+		},
+	})
+
+	// Append disks, volumes, and data volumes for all additional disks
+	for i, volume := range additionalVolumes {
+		// Generate a unique name for this disk
+		diskName := fmt.Sprintf("disk%d", i)
+
+		// Append a disk for this additional disk
+		disks = append(disks, kubevirtv1.Disk{
+			Name: diskName,
+			DiskDevice: kubevirtv1.DiskDevice{
+				Disk: &kubevirtv1.DiskTarget{
+					Bus: "virtio",
+				},
+			},
+		})
+
+		switch {
+		case volume.DataVolume != nil:
+			// Generate a unique name for this data volume
+			dataVolumeName := fmt.Sprintf("%s-%d", machineName, i)
+
+			// Append a volume and a data volume for this additional disk
+			volumes = append(volumes, kubevirtv1.Volume{
+				Name: diskName,
+				VolumeSource: kubevirtv1.VolumeSource{
+					DataVolume: &kubevirtv1.DataVolumeSource{
+						Name: dataVolumeName,
+					},
+				},
+			})
+			dataVolumes = append(dataVolumes, cdicorev1alpha1.DataVolume{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      dataVolumeName,
+					Namespace: namespace,
+				},
+				Spec: *volume.DataVolume,
+			})
+
+		case volume.VolumeSource != nil:
+			// Append a volume for this additional disk
+			volumes = append(volumes, kubevirtv1.Volume{
+				Name: diskName,
+				VolumeSource: kubevirtv1.VolumeSource{
+					PersistentVolumeClaim: volume.VolumeSource.PersistentVolumeClaim,
+					ConfigMap:             volume.VolumeSource.ConfigMap,
+					Secret:                volume.VolumeSource.Secret,
+				},
+			})
+		}
+	}
+
+	return disks, volumes, dataVolumes
 }
 
 const (
@@ -248,16 +350,20 @@ func normalizeVersion(version string) string {
 }
 
 func addUserSSHKeysToUserData(userData string, sshKeys []string) (string, error) {
-	var userDataBuilder strings.Builder
+	if len(sshKeys) == 0 {
+		return userData, nil
+	}
+
 	if strings.Contains(userData, "ssh_authorized_keys:") {
 		return "", errors.New("userData already contains key `ssh_authorized_keys`")
 	}
 
+	var userDataBuilder strings.Builder
 	userDataBuilder.WriteString(userData)
 	userDataBuilder.WriteString("\nssh_authorized_keys:\n")
-	for _, key := range sshKeys {
+	for _, sshKey := range sshKeys {
 		userDataBuilder.WriteString("- ")
-		userDataBuilder.WriteString(key)
+		userDataBuilder.WriteString(strings.TrimSpace(sshKey))
 		userDataBuilder.WriteString("\n")
 	}
 
