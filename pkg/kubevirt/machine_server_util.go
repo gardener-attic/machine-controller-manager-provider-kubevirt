@@ -30,9 +30,14 @@ func decodeProviderSpecAndSecret(machineClass *v1alpha1.MachineClass, secret *co
 		return nil, status.Error(codes.Internal, wrapped.Error())
 	}
 
-	validationErrors := validation.ValidateKubevirtProviderSpecAndSecret(providerSpec, secret)
-	if validationErrors != nil {
-		err = fmt.Errorf("could not validate provider spec and secret: %v", validationErrors)
+	if errs := validation.ValidateKubevirtProviderSpec(providerSpec); errs != nil {
+		err = fmt.Errorf("could not validate provider spec: %v", errs)
+		klog.V(2).Infof(err.Error())
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	if errs := validation.ValidateKubevirtProviderSecrets(secret); errs != nil {
+		err = fmt.Errorf("could not validate provider secrets: %v", errs)
 		klog.V(2).Infof(err.Error())
 		return nil, status.Error(codes.Internal, err.Error())
 	}

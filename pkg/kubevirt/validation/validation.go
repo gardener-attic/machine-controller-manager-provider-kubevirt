@@ -20,90 +20,92 @@ import (
 	"fmt"
 
 	api "github.com/gardener/machine-controller-manager-provider-kubevirt/pkg/kubevirt/apis"
-	"github.com/gardener/machine-controller-manager-provider-kubevirt/pkg/kubevirt/util"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-// ValidateKubevirtProviderSpecAndSecret validates kubevirt spec and secret to check if all fields are present and valid
-func ValidateKubevirtProviderSpecAndSecret(spec *api.KubeVirtProviderSpec, secrets *corev1.Secret) []error {
-	var validationErrors []error
+// ValidateKubevirtProviderSpec validates kubevirt spec to check if all fields are present and valid
+func ValidateKubevirtProviderSpec(spec *api.KubeVirtProviderSpec) field.ErrorList {
+	errs := field.ErrorList{}
 
-	if spec.CPUs == "" {
-		validationErrors = append(validationErrors, errors.New("cpus field cannot be empty"))
+	requestsPath := field.NewPath("resources").Child("requests")
+	if spec.Resources.Requests.Memory().IsZero() {
+		errs = append(errs, field.Required(requestsPath.Child("memory"), "cannot be zero"))
 	}
-	if spec.Memory == "" {
-		validationErrors = append(validationErrors, errors.New("memory field cannot be empty"))
+	if spec.Resources.Requests.Cpu().IsZero() {
+		errs = append(errs, field.Required(requestsPath.Child("cpu"), "cannot be zero"))
 	}
-	if _, err := util.ParseResources(spec.CPUs, spec.Memory); err != nil {
-		validationErrors = append(validationErrors, fmt.Errorf("invalid cpus/memory values: %v", err))
-	}
+
 	if spec.SourceURL == "" {
-		validationErrors = append(validationErrors, errors.New("sourceURL field cannot be empty"))
+		errs = append(errs, field.Required(field.NewPath("sourceURL"), "cannot be empty"))
 	}
+
 	if spec.StorageClassName == "" {
-		validationErrors = append(validationErrors, errors.New("storageClassName field cannot be empty"))
+		errs = append(errs, field.Required(field.NewPath("storageClassName"), "cannot be empty"))
 	}
-	if spec.PVCSize == "" {
-		validationErrors = append(validationErrors, errors.New("memory field cannot be empty"))
+
+	if spec.PVCSize.IsZero() {
+		errs = append(errs, field.Required(field.NewPath("pvcSize"), "cannot be zero"))
 	}
-	if _, err := resource.ParseQuantity(spec.PVCSize); err != nil {
-		validationErrors = append(validationErrors, fmt.Errorf("failed to parse value of pvcSize field: %v", err))
+
+	if spec.Region == "" {
+		errs = append(errs, field.Required(field.NewPath("region"), "cannot be empty"))
 	}
+
+	if spec.Zone == "" {
+		errs = append(errs, field.Required(field.NewPath("zone"), "cannot be empty"))
+	}
+
 	if spec.DNSPolicy != "" {
+		dnsPolicyPath := field.NewPath("dnsPolicy")
+		dnsConfigPath := field.NewPath("dnsConfig")
+
 		switch spec.DNSPolicy {
 		case corev1.DNSDefault, corev1.DNSClusterFirstWithHostNet, corev1.DNSClusterFirst, corev1.DNSNone:
 			break
 		default:
-			validationErrors = append(validationErrors, fmt.Errorf("invalid dns policy: %v", spec.DNSPolicy))
+			errs = append(errs, field.Invalid(dnsPolicyPath, spec.DNSPolicy, "invalid dns policy"))
 		}
 
 		if spec.DNSPolicy == corev1.DNSNone {
 			if spec.DNSConfig != nil {
 				if len(spec.DNSConfig.Nameservers) == 0 {
-					validationErrors = append(validationErrors, errors.New("dns config must specify nameservers when dns policy is None"))
+					errs = append(errs, field.Required(dnsConfigPath.Child("nameservers"),
+						fmt.Sprintf("cannot be empty when dns policy is %s", corev1.DNSNone)))
 				}
 			} else {
-				validationErrors = append(validationErrors, errors.New("dns config must be specified when dns policy is None"))
+				errs = append(errs, field.Required(dnsConfigPath,
+					fmt.Sprintf("cannot be empty when dns policy is %s", corev1.DNSNone)))
 			}
 		}
 	}
 
-	if spec.MemoryFeatures != nil && spec.MemoryFeatures.Hugepages != nil {
-		_, err := resource.ParseQuantity(spec.MemoryFeatures.Hugepages.PageSize)
-		if err != nil {
-			validationErrors = append(validationErrors, fmt.Errorf("invalid value of hugepages size '%v'",
-				spec.MemoryFeatures.Hugepages.PageSize))
-		}
-	}
-
-	validationErrors = append(validationErrors, validateSecrets(secrets)...)
-
-	return validationErrors
+	return errs
 }
 
-func validateSecrets(secret *corev1.Secret) []error {
-	var validationErrors []error
+// ValidateKubevirtProviderSecrets validates kubevirt secrets
+func ValidateKubevirtProviderSecrets(secret *corev1.Secret) []error {
+	var errs []error
 
 	if secret == nil {
-		validationErrors = append(validationErrors, errors.New("secret object passed by the MCM is nil"))
+		errs = append(errs, errors.New("secret object passed by the MCM is nil"))
 	} else {
 		kubeconfig, kubevirtKubeconifgCheck := secret.Data["kubeconfig"]
 		_, userdataCheck := secret.Data["userData"]
 
 		if !kubevirtKubeconifgCheck {
-			validationErrors = append(validationErrors, fmt.Errorf("secret kubeconfig is required field"))
+			errs = append(errs, fmt.Errorf("secret kubeconfig is required field"))
 		} else {
 			_, err := clientcmd.RESTConfigFromKubeConfig(kubeconfig)
 			if err != nil {
-				validationErrors = append(validationErrors, fmt.Errorf("failed to decode kubeconfig: %v", err))
+				errs = append(errs, fmt.Errorf("failed to decode kubeconfig: %v", err))
 			}
 		}
 		if !userdataCheck {
-			validationErrors = append(validationErrors, fmt.Errorf("secret userData is required field"))
+			errs = append(errs, fmt.Errorf("secret userData is required field"))
 		}
 	}
-	return validationErrors
+	return errs
 }

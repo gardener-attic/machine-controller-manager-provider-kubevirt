@@ -16,21 +16,24 @@ package api
 
 import (
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	kubevirtv1 "kubevirt.io/client-go/api/v1"
 )
 
 // KubeVirtProviderSpec is the spec to be used while parsing the calls.
 type KubeVirtProviderSpec struct {
+	// Resources defines requests and limits resources of VMI
+	Resources kubevirtv1.ResourceRequirements `json:"resources"`
 	// SourceURL is the HTTP URL of the source image imported by CDI.
 	SourceURL string `json:"sourceURL"`
 	// StorageClassName is the name which CDI uses to in order to create claims.
 	StorageClassName string `json:"storageClassName"`
 	// PVCSize is the size of the PersistentVolumeClaim that is created during the image import by CDI.
-	PVCSize string `json:"pvcSize"`
-	// CPUs is the number of CPUs requested by the VM.
-	CPUs string `json:"cpus"`
-	// Memory is the amount of memory requested by the VM.
-	Memory string `json:"memory"`
+	PVCSize resource.Quantity `json:"pvcSize"`
+	// Region is the name of the region for the VM.
+	Region string `json:"region"`
+	// Zone is the name of the zone for the VM.
+	Zone string `json:"zone"`
 	// DNSConfig is the DNS configuration of the VM pod.
 	// The parameters specified here will be merged with the generated DNS configuration based on DNSPolicy.
 	// +optional
@@ -47,21 +50,19 @@ type KubeVirtProviderSpec struct {
 	// the pod network won't be added, otherwise it will be added as default.
 	// +optional
 	Networks []NetworkSpec `json:"networks,omitempty"`
-	// Region is the name of the region for the VM.
-	Region string `json:"region"`
-	// Zone is the name of the zone for the VM.
-	// +optional
-	Zone string `json:"zone,omitempty"`
 	// Tags is an optional map of tags that is added to the VM as labels.
 	// +optional
 	Tags map[string]string `json:"tags,omitempty"`
-	// MemoryFeatures allows specifying the VirtualMachineInstance memory features like huge pages and guest memory settings.
+	// CPU allows specifying the CPU topology of KubeVirt VM.
+	// +optional
+	CPU *kubevirtv1.CPU `json:"cpu,omitempty"`
+	// Memory allows specifying the VirtualMachineInstance memory features like huge pages and guest memory settings.
 	// Each feature might require appropriate FeatureGate enabled.
 	// For hugepages take a look at:
 	// k8s - https://kubernetes.io/docs/tasks/manage-hugepages/scheduling-hugepages/
 	// okd - https://docs.okd.io/3.9/scaling_performance/managing_hugepages.html#huge-pages-prerequisites
 	// +optional
-	MemoryFeatures *kubevirtv1.Memory `json:"memoryFeatures,omitempty"`
+	Memory *kubevirtv1.Memory `json:"memory,omitempty"`
 }
 
 // NetworkSpec contains information about a network.

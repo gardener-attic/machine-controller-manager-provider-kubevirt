@@ -24,11 +24,9 @@ import (
 
 	api "github.com/gardener/machine-controller-manager-provider-kubevirt/pkg/kubevirt/apis"
 	clouderrors "github.com/gardener/machine-controller-manager-provider-kubevirt/pkg/kubevirt/errors"
-	"github.com/gardener/machine-controller-manager-provider-kubevirt/pkg/kubevirt/util"
 
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
@@ -98,18 +96,7 @@ func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, pr
 		return "", fmt.Errorf("failed to create client: %v", err)
 	}
 
-	requestsAndLimits, err := util.ParseResources(providerSpec.CPUs, providerSpec.Memory)
-	if err != nil {
-		return "", fmt.Errorf("failed to parse resources fields: %v", err)
-	}
-
-	pvcSize, err := resource.ParseQuantity(providerSpec.PVCSize)
-	if err != nil {
-		return "", fmt.Errorf("failed to parse pvcSize field: %v", err)
-	}
-
 	var (
-		pvcRequest                    = corev1.ResourceList{corev1.ResourceStorage: pvcSize}
 		terminationGracePeriodSeconds = int64(30)
 		userdataSecretName            = fmt.Sprintf("userdata-%s-%s", machineName, strconv.Itoa(int(time.Now().Unix())))
 	)
@@ -160,7 +147,9 @@ func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, pr
 					"ReadWriteOnce",
 				},
 				Resources: corev1.ResourceRequirements{
-					Requests: pvcRequest,
+					Requests: corev1.ResourceList{
+						corev1.ResourceStorage: providerSpec.PVCSize,
+					},
 				},
 			},
 			Source: cdi.DataVolumeSource{
@@ -196,6 +185,8 @@ func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, pr
 				},
 				Spec: kubevirtv1.VirtualMachineInstanceSpec{
 					Domain: kubevirtv1.DomainSpec{
+						CPU:    providerSpec.CPU,
+						Memory: providerSpec.Memory,
 						Devices: kubevirtv1.Devices{
 							Disks: []kubevirtv1.Disk{
 								{
@@ -209,10 +200,7 @@ func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, pr
 							},
 							Interfaces: interfaces,
 						},
-						Resources: kubevirtv1.ResourceRequirements{
-							Requests: *requestsAndLimits,
-							Limits:   *requestsAndLimits,
-						},
+						Resources: providerSpec.Resources,
 					},
 					TerminationGracePeriodSeconds: &terminationGracePeriodSeconds,
 					Volumes: []kubevirtv1.Volume{
@@ -246,12 +234,6 @@ func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, pr
 				dataVolumeTemplate,
 			},
 		},
-	}
-
-	if providerSpec.MemoryFeatures != nil && providerSpec.MemoryFeatures.Hugepages != nil {
-		virtualMachine.Spec.Template.Spec.Domain.Memory = &kubevirtv1.Memory{
-			Hugepages: providerSpec.MemoryFeatures.Hugepages,
-		}
 	}
 
 	if err := c.Create(ctx, virtualMachine); err != nil {
