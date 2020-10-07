@@ -121,7 +121,7 @@ func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, pr
 		return "", fmt.Errorf("failed to get server version: %v", err)
 	}
 
-	affinity := buildAffinity(providerSpec.Region, providerSpec.Zones, k8sVersion)
+	affinity := buildAffinity(providerSpec.Region, providerSpec.Zone, k8sVersion)
 
 	userData := string(secret.Data["userData"])
 	if len(providerSpec.SSHKeys) > 0 {

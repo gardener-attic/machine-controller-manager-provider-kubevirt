@@ -178,7 +178,7 @@ const (
 	defaultZone = "default"
 )
 
-func buildAffinity(region string, zones []string, k8sVersion string) *corev1.Affinity {
+func buildAffinity(region, zone, k8sVersion string) *corev1.Affinity {
 	var affinity *corev1.Affinity
 	if region != "" {
 		// Get region and zone labels
@@ -199,13 +199,13 @@ func buildAffinity(region string, zones []string, k8sVersion string) *corev1.Aff
 			})
 		}
 
-		// If there are zones, add match expression for the zone label
-		if len(zones) > 0 {
-			if len(zones) > 1 || zones[0] != defaultZone {
+		// If there is a zone, add match expression for the zone label
+		if zone != "" {
+			if zone != defaultZone {
 				matchExpressions = append(matchExpressions, corev1.NodeSelectorRequirement{
 					Key:      zoneLabel,
 					Operator: corev1.NodeSelectorOpIn,
-					Values:   zones,
+					Values:   []string{zone},
 				})
 			} else {
 				matchExpressions = append(matchExpressions, corev1.NodeSelectorRequirement{

@@ -22,15 +22,15 @@ import (
 // KubeVirtProviderSpec is the spec to be used while parsing the calls.
 type KubeVirtProviderSpec struct {
 	// SourceURL is the HTTP URL of the source image imported by CDI.
-	SourceURL string `json:"sourceURL,omitempty"`
+	SourceURL string `json:"sourceURL"`
 	// StorageClassName is the name which CDI uses to in order to create claims.
-	StorageClassName string `json:"storageClassName,omitempty"`
+	StorageClassName string `json:"storageClassName"`
 	// PVCSize is the size of the PersistentVolumeClaim that is created during the image import by CDI.
-	PVCSize string `json:"pvcSize,omitempty"`
+	PVCSize string `json:"pvcSize"`
 	// CPUs is the number of CPUs requested by the VM.
-	CPUs string `json:"cpus,omitempty"`
+	CPUs string `json:"cpus"`
 	// Memory is the amount of memory requested by the VM.
-	Memory string `json:"memory,omitempty"`
+	Memory string `json:"memory"`
 	// DNSConfig is the DNS configuration of the VM pod.
 	// The parameters specified here will be merged with the generated DNS configuration based on DNSPolicy.
 	// +optional
@@ -48,10 +48,10 @@ type KubeVirtProviderSpec struct {
 	// +optional
 	Networks []NetworkSpec `json:"networks,omitempty"`
 	// Region is the name of the region for the VM.
-	Region string
-	// Zones is a list of availability zones for the VM.
+	Region string `json:"region"`
+	// Zone is the name of the zone for the VM.
 	// +optional
-	Zones []string
+	Zone string `json:"zone,omitempty"`
 	// Tags is an optional map of tags that is added to the VM as labels.
 	// +optional
 	Tags map[string]string `json:"tags,omitempty"`
@@ -60,7 +60,8 @@ type KubeVirtProviderSpec struct {
 	// For hugepages take a look at:
 	// k8s - https://kubernetes.io/docs/tasks/manage-hugepages/scheduling-hugepages/
 	// okd - https://docs.okd.io/3.9/scaling_performance/managing_hugepages.html#huge-pages-prerequisites
-	MemoryFeatures *kubevirtv1.Memory
+	// +optional
+	MemoryFeatures *kubevirtv1.Memory `json:"memoryFeatures,omitempty"`
 }
 
 // NetworkSpec contains information about a network.
