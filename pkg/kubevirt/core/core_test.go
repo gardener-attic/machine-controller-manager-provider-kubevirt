@@ -25,17 +25,33 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/klog"
+	"k8s.io/utils/pointer"
 	kubevirtv1 "kubevirt.io/client-go/api/v1"
-	cdi "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
+	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 var (
 	providerSpec = &api.KubeVirtProviderSpec{
-		SourceURL:        "http://test-image.com",
-		StorageClassName: "test-sc",
-		PVCSize:          resource.MustParse("10Gi"),
+		RootVolume: cdicorev1alpha1.DataVolumeSpec{
+			PVC: &corev1.PersistentVolumeClaimSpec{
+				StorageClassName: pointer.StringPtr("test-sc"),
+				AccessModes: []corev1.PersistentVolumeAccessMode{
+					"ReadWriteOnce",
+				},
+				Resources: corev1.ResourceRequirements{
+					Requests: corev1.ResourceList{
+						corev1.ResourceStorage: resource.MustParse("10Gi"),
+					},
+				},
+			},
+			Source: cdicorev1alpha1.DataVolumeSource{
+				HTTP: &cdicorev1alpha1.DataVolumeSourceHTTP{
+					URL: "http://test-image.com",
+				},
+			},
+		},
 		Resources: kubevirtv1.ResourceRequirements{
 			Requests: corev1.ResourceList{
 				corev1.ResourceCPU:    resource.MustParse("1"),
@@ -53,7 +69,7 @@ var (
 )
 
 func init() {
-	if err := cdi.AddToScheme(scheme.Scheme); err != nil {
+	if err := cdicorev1alpha1.AddToScheme(scheme.Scheme); err != nil {
 		klog.Errorf("could not execute tests: %v", err)
 		os.Exit(1)
 	}
