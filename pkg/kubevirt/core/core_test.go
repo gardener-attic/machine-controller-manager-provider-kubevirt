@@ -81,12 +81,9 @@ func TestPluginSPIImpl_CreateMachine(t *testing.T) {
 	fakeClient := fake.NewFakeClientWithScheme(scheme.Scheme)
 	t.Run("CreateMachine", func(t *testing.T) {
 		mf := newMockFactory(fakeClient, namespace, serverVersion)
-		plugin, err := NewPluginSPIImpl(mf, mf)
-		if err != nil {
-			t.Fatalf("failed to create plugin: %v", err)
-		}
+		plugin := NewPluginSPIImpl(mf, mf)
 
-		_, err = plugin.CreateMachine(context.Background(), machineName, providerSpec, &corev1.Secret{})
+		_, err := plugin.CreateMachine(context.Background(), machineName, providerSpec, &corev1.Secret{})
 		if err != nil {
 			t.Fatalf("failed to create machine: %v", err)
 		}
@@ -106,12 +103,9 @@ func TestPluginSPIImpl_GetMachineStatus(t *testing.T) {
 	fakeClient := fake.NewFakeClientWithScheme(scheme.Scheme)
 	t.Run("GetMachineStatus", func(t *testing.T) {
 		mf := newMockFactory(fakeClient, namespace, serverVersion)
-		plugin, err := NewPluginSPIImpl(mf, mf)
-		if err != nil {
-			t.Fatalf("failed to create plugin: %v", err)
-		}
+		plugin := NewPluginSPIImpl(mf, mf)
 
-		_, err = plugin.CreateMachine(context.Background(), machineName, providerSpec, &corev1.Secret{})
+		_, err := plugin.CreateMachine(context.Background(), machineName, providerSpec, &corev1.Secret{})
 		if err != nil {
 			t.Fatalf("failed to create machine: %v", err)
 		}
@@ -131,12 +125,9 @@ func TestPluginSPIImpl_ListMachines(t *testing.T) {
 	fakeClient := fake.NewFakeClientWithScheme(scheme.Scheme)
 	t.Run("ListMachines", func(t *testing.T) {
 		mf := newMockFactory(fakeClient, namespace, serverVersion)
-		plugin, err := NewPluginSPIImpl(mf, mf)
-		if err != nil {
-			t.Fatalf("failed to create plugin: %v", err)
-		}
+		plugin := NewPluginSPIImpl(mf, mf)
 
-		_, err = plugin.CreateMachine(context.Background(), machineName, providerSpec, &corev1.Secret{})
+		_, err := plugin.CreateMachine(context.Background(), machineName, providerSpec, &corev1.Secret{})
 		if err != nil {
 			t.Fatalf("failed to create machine: %v", err)
 		}
@@ -156,10 +147,7 @@ func TestPluginSPIImpl_ShutDownMachine(t *testing.T) {
 	fakeClient := fake.NewFakeClientWithScheme(scheme.Scheme)
 	t.Run("ShutDownMachine", func(t *testing.T) {
 		mf := newMockFactory(fakeClient, namespace, serverVersion)
-		plugin, err := NewPluginSPIImpl(mf, mf)
-		if err != nil {
-			t.Fatalf("failed to create plugin: %v", err)
-		}
+		plugin := NewPluginSPIImpl(mf, mf)
 
 		providerID, err := plugin.CreateMachine(context.Background(), machineName, providerSpec, &corev1.Secret{})
 		if err != nil {
@@ -186,10 +174,7 @@ func TestPluginSPIImpl_DeleteMachine(t *testing.T) {
 	fakeClient := fake.NewFakeClientWithScheme(scheme.Scheme)
 	t.Run("DeleteMachine", func(t *testing.T) {
 		mf := newMockFactory(fakeClient, namespace, serverVersion)
-		plugin, err := NewPluginSPIImpl(mf, mf)
-		if err != nil {
-			t.Fatalf("failed to create plugin: %v", err)
-		}
+		plugin := NewPluginSPIImpl(mf, mf)
 
 		providerID, err := plugin.CreateMachine(context.Background(), machineName, providerSpec, &corev1.Secret{})
 		if err != nil {

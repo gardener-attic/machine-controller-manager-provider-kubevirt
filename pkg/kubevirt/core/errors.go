@@ -12,26 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package errors
+package core
 
 import (
 	"fmt"
 )
 
-// MachineNotFoundError is used to indicate not found error in PluginSPI
+// MachineNotFoundError represents a "machine not found" error.
 type MachineNotFoundError struct {
 	// Name is the machine name
 	Name string
-	// MachineID is the machine uuid
-	MachineID string
 }
 
-// Error returns the MachineNotFoundError message with machine name and uuid.
 func (e *MachineNotFoundError) Error() string {
-	return fmt.Sprintf("machine name=%s, uuid=%s not found", e.Name, e.MachineID)
+	return fmt.Sprintf("machine %q not found", e.Name)
 }
 
-// IsMachineNotFoundError identifies MachineNotFoundError and returns true if it is and false if not.
+// IsMachineNotFoundError returns true if the given error is a MachineNotFoundError, false otherwise.
 func IsMachineNotFoundError(err error) bool {
 	switch err.(type) {
 	case *MachineNotFoundError:
