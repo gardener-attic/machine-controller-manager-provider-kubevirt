@@ -22,46 +22,42 @@ import (
 
 // KubeVirtProviderSpec is the spec to be used while parsing the calls.
 type KubeVirtProviderSpec struct {
-	// Resources defines requests and limits resources of VMI
+	// Region is the VM region name.
+	Region string `json:"region"`
+	// Zone is the VM zone name.
+	Zone string `json:"zone"`
+	// Resources specifies the requests and limits for VM resources (CPU and memory).
 	Resources kubevirtv1.ResourceRequirements `json:"resources"`
 	// RootVolume is the specification for the root volume of the VM.
 	RootVolume cdicorev1alpha1.DataVolumeSpec `json:"rootVolume"`
 	// AdditionalVolumes is an optional list of additional volumes attached to the VM.
 	// +optional
 	AdditionalVolumes []AdditionalVolumeSpec `json:"additionalVolumes,omitempty"`
-	// Region is the name of the region for the VM.
-	Region string `json:"region"`
-	// Zone is the name of the zone for the VM.
-	Zone string `json:"zone"`
-	// DNSConfig is the DNS configuration of the VM pod.
-	// The parameters specified here will be merged with the generated DNS configuration based on DNSPolicy.
-	// +optional
-	DNSConfig *corev1.PodDNSConfig `json:"dnsConfig,omitempty"`
-	// DNSPolicy is the DNS policy for the VM pod.
-	// Defaults to "ClusterFirst" and valid values are 'ClusterFirstWithHostNet', 'ClusterFirst', 'Default' or 'None'.
-	// To have DNS options set along with hostNetwork, specify DNS policy as 'ClusterFirstWithHostNet'.
-	// +optional
-	DNSPolicy corev1.DNSPolicy `json:"dnsPolicy,omitempty"`
-	// SSHKeys is an optional list of SSH public keys added to the VM (may already be included in UserData)
+	// SSHKeys is an optional list of SSH public keys added to the VM.
 	// +optional
 	SSHKeys []string `json:"sshKeys,omitempty"`
 	// Networks is an optional list of networks for the VM. If any of the networks is specified as "default"
 	// the pod network won't be added, otherwise it will be added as default.
 	// +optional
 	Networks []NetworkSpec `json:"networks,omitempty"`
-	// Tags is an optional map of tags that is added to the VM as labels.
-	// +optional
-	Tags map[string]string `json:"tags,omitempty"`
-	// CPU allows specifying the CPU topology of KubeVirt VM.
+	// CPU allows specifying the CPU topology of the VM.
 	// +optional
 	CPU *kubevirtv1.CPU `json:"cpu,omitempty"`
-	// Memory allows specifying the VirtualMachineInstance memory features like huge pages and guest memory settings.
-	// Each feature might require appropriate FeatureGate enabled.
-	// For hugepages take a look at:
-	// k8s - https://kubernetes.io/docs/tasks/manage-hugepages/scheduling-hugepages/
-	// okd - https://docs.okd.io/3.9/scaling_performance/managing_hugepages.html#huge-pages-prerequisites
+	// Memory allows specifying the VM memory features such as hugepages and guest memory settings.
+	// Each feature might require enabling the appropriate feature gate.
 	// +optional
 	Memory *kubevirtv1.Memory `json:"memory,omitempty"`
+	// DNSPolicy is the DNS policy of the VM pod.
+	// Defaults to "ClusterFirst" and valid values are "ClusterFirstWithHostNet", "ClusterFirst", "Default" or "None".
+	// +optional
+	DNSPolicy corev1.DNSPolicy `json:"dnsPolicy,omitempty"`
+	// DNSConfig is the DNS configuration of the VM pod.
+	// The parameters specified here will be merged with the DNS configuration generated based on DNSPolicy.
+	// +optional
+	DNSConfig *corev1.PodDNSConfig `json:"dnsConfig,omitempty"`
+	// Tags is an optional map of tags that are added to the VM as labels.
+	// +optional
+	Tags map[string]string `json:"tags,omitempty"`
 }
 
 // AdditionalVolumeSpec represents an additional volume attached to a VM.
@@ -79,7 +75,6 @@ type AdditionalVolumeSpec struct {
 // Only one of its members may be specified.
 type VolumeSource struct {
 	// PersistentVolumeClaimVolumeSource represents a reference to a PersistentVolumeClaim in the same namespace.
-	// Directly attached to the vmi via qemu.
 	// More info: https://kubernetes.io/docs/concepts/storage/persistent-volumes#persistentvolumeclaims
 	// +optional
 	PersistentVolumeClaim *corev1.PersistentVolumeClaimVolumeSource `json:"persistentVolumeClaim,omitempty"`

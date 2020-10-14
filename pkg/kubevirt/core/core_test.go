@@ -34,24 +34,8 @@ import (
 
 var (
 	providerSpec = &api.KubeVirtProviderSpec{
-		RootVolume: cdicorev1alpha1.DataVolumeSpec{
-			PVC: &corev1.PersistentVolumeClaimSpec{
-				StorageClassName: pointer.StringPtr("test-sc"),
-				AccessModes: []corev1.PersistentVolumeAccessMode{
-					"ReadWriteOnce",
-				},
-				Resources: corev1.ResourceRequirements{
-					Requests: corev1.ResourceList{
-						corev1.ResourceStorage: resource.MustParse("10Gi"),
-					},
-				},
-			},
-			Source: cdicorev1alpha1.DataVolumeSource{
-				HTTP: &cdicorev1alpha1.DataVolumeSourceHTTP{
-					URL: "http://test-image.com",
-				},
-			},
-		},
+		Region: "default",
+		Zone:   "default",
 		Resources: kubevirtv1.ResourceRequirements{
 			Requests: corev1.ResourceList{
 				corev1.ResourceCPU:    resource.MustParse("1"),
@@ -60,6 +44,24 @@ var (
 			Limits: corev1.ResourceList{
 				corev1.ResourceCPU:    resource.MustParse("2"),
 				corev1.ResourceMemory: resource.MustParse("8Gi"),
+			},
+		},
+		RootVolume: cdicorev1alpha1.DataVolumeSpec{
+			PVC: &corev1.PersistentVolumeClaimSpec{
+				AccessModes: []corev1.PersistentVolumeAccessMode{
+					"ReadWriteOnce",
+				},
+				Resources: corev1.ResourceRequirements{
+					Requests: corev1.ResourceList{
+						corev1.ResourceStorage: resource.MustParse("10Gi"),
+					},
+				},
+				StorageClassName: pointer.StringPtr("test-sc"),
+			},
+			Source: cdicorev1alpha1.DataVolumeSource{
+				HTTP: &cdicorev1alpha1.DataVolumeSourceHTTP{
+					URL: "http://test-image.com",
+				},
 			},
 		},
 	}
