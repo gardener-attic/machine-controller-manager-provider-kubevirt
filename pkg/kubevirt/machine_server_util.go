@@ -2,10 +2,9 @@ package kubevirt
 
 import (
 	"encoding/json"
-	"fmt"
 
 	api "github.com/gardener/machine-controller-manager-provider-kubevirt/pkg/kubevirt/apis"
-	clouderrors "github.com/gardener/machine-controller-manager-provider-kubevirt/pkg/kubevirt/errors"
+	"github.com/gardener/machine-controller-manager-provider-kubevirt/pkg/kubevirt/core"
 	"github.com/gardener/machine-controller-manager-provider-kubevirt/pkg/kubevirt/validation"
 
 	"github.com/gardener/machine-controller-manager/pkg/apis/machine/v1alpha1"
@@ -26,7 +25,7 @@ func decodeProviderSpecAndSecret(machineClass *v1alpha1.MachineClass, secret *co
 	}
 
 	if errs := validation.ValidateKubevirtProviderSpec(spec); len(errs) > 0 {
-		err := fmt.Errorf("could not validate provider spec: %v", errs)
+		err := errors.Errorf("could not validate provider spec: %v", errs)
 		klog.V(2).Infof(err.Error())
 		return nil, status.Error(codes.Internal, err.Error())
 	}
@@ -38,7 +37,7 @@ func decodeProviderSpecAndSecret(machineClass *v1alpha1.MachineClass, secret *co
 	}
 
 	if errs := validation.ValidateKubevirtProviderSecret(secret); len(errs) > 0 {
-		err := fmt.Errorf("could not validate provider secret: %v", errs)
+		err := errors.Errorf("could not validate provider secret: %v", errs)
 		klog.V(2).Infof(err.Error())
 		return nil, status.Error(codes.Internal, err.Error())
 	}
@@ -46,14 +45,14 @@ func decodeProviderSpecAndSecret(machineClass *v1alpha1.MachineClass, secret *co
 	return spec, nil
 }
 
-// prepareErrorf prepares, formats, and wraps the given error in a status.Error.
-func prepareErrorf(err error, format string, args ...interface{}) error {
+// wrapf wraps the given error in a status.Error.
+func wrapf(err error, format string, args ...interface{}) error {
 	var (
 		code    codes.Code
 		wrapped error
 	)
 	switch err.(type) {
-	case *clouderrors.MachineNotFoundError:
+	case *core.MachineNotFoundError:
 		code = codes.NotFound
 		wrapped = err
 	default:

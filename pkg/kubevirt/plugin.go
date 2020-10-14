@@ -22,41 +22,31 @@ import (
 
 	"github.com/gardener/machine-controller-manager/pkg/util/provider/driver"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/klog"
 )
 
-// PluginSPI provides an interface to deal with cloud provider session
-// You can optionally enhance this interface to add interface methods here
-// You can use it to mock cloud provider calls
+// PluginSPI is an interface for provider-specific machine operations.
 type PluginSPI interface {
-	// CreateMachine handles a machine creation request
-	CreateMachine(ctx context.Context, machineName string, providerSpec *api.KubeVirtProviderSpec, secrets *corev1.Secret) (providerID string, err error)
-	// DeleteMachine handles a machine deletion request
-	DeleteMachine(ctx context.Context, machineName, providerID string, providerSpec *api.KubeVirtProviderSpec, secrets *corev1.Secret) (foundProviderID string, err error)
-	// GetMachineStatus handles a machine get status request
-	GetMachineStatus(ctx context.Context, machineName, providerID string, providerSpec *api.KubeVirtProviderSpec, secrets *corev1.Secret) (foundProviderID string, err error)
-	// ListMachines lists all the machines possibly created by a providerSpec
-	ListMachines(ctx context.Context, providerSpec *api.KubeVirtProviderSpec, secrets *corev1.Secret) (providerIDList map[string]string, err error)
-	// ShutDownMachine shuts down a machine by name
-	ShutDownMachine(ctx context.Context, machineName, providerID string, providerSpec *api.KubeVirtProviderSpec, secrets *corev1.Secret) (foundProviderID string, err error)
+	// CreateMachine creates a machine with the given name, using the given provider spec and secret.
+	CreateMachine(ctx context.Context, machineName string, providerSpec *api.KubeVirtProviderSpec, secret *corev1.Secret) (providerID string, err error)
+	// DeleteMachine deletes the machine with the given name and provider id, using the given provider spec and secret.
+	DeleteMachine(ctx context.Context, machineName, providerID string, providerSpec *api.KubeVirtProviderSpec, secret *corev1.Secret) (foundProviderID string, err error)
+	// GetMachineStatus returns the provider id of the machine with the given name and provider id, using the given provider spec and secret.
+	GetMachineStatus(ctx context.Context, machineName, providerID string, providerSpec *api.KubeVirtProviderSpec, secret *corev1.Secret) (foundProviderID string, err error)
+	// ListMachines lists all machines matching the given provider spec and secret.
+	ListMachines(ctx context.Context, providerSpec *api.KubeVirtProviderSpec, secret *corev1.Secret) (providerIDList map[string]string, err error)
+	// ShutDownMachine shuts down the machine with the given name and provider id, using the given provider spec and secret.
+	ShutDownMachine(ctx context.Context, machineName, providerID string, providerSpec *api.KubeVirtProviderSpec, secret *corev1.Secret) (foundProviderID string, err error)
 }
 
-// MachinePlugin implements the cmi.MachineServer
-// It also implements the pluginSPI interface
+// MachinePlugin implements cmi.MachineServer by delegating to a PluginSPI implementation.
 type MachinePlugin struct {
-	// SPI provides an interface to deal with cloud provider session.
+	// SPI is an implementation of the PluginSPI interface.
 	SPI PluginSPI
 }
 
-// NewKubevirtPlugin returns a new Kubevirt cloud provider driver.
+// NewKubevirtPlugin creates a new kubevirt driver.
 func NewKubevirtPlugin() driver.Driver {
-	plugin, err := core.NewPluginSPIImpl(core.ClientFactoryFunc(core.GetClient), core.ServerVersionFactoryFunc(core.GetServerVersion))
-	if err != nil {
-		klog.Errorf("failed to create Kubevirt plugin")
-		return nil
-	}
-
 	return &MachinePlugin{
-		SPI: plugin,
+		SPI: core.NewPluginSPIImpl(core.ClientFactoryFunc(core.GetClient), core.ServerVersionFactoryFunc(core.GetServerVersion)),
 	}
 }

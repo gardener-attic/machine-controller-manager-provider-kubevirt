@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package kubevirt contains the cloud kubevirt specific implementations to manage machines
 package kubevirt
 
 import (
@@ -48,9 +47,8 @@ import (
 // This logic is used by safety controller to delete orphan VMs which are not backed by any machine CRD
 //
 func (p *MachinePlugin) CreateMachine(ctx context.Context, req *driver.CreateMachineRequest) (*driver.CreateMachineResponse, error) {
-	// Log messages to track request
-	klog.V(2).Infof("CreateMachine request has been received for %q", req.Machine.Name)
-	defer klog.V(2).Infof("CreateMachine request has been processed for %q", req.Machine.Name)
+	klog.V(2).Infof("CreateMachine request received for %q", req.Machine.Name)
+	defer klog.V(2).Infof("CreateMachine request processed for %q", req.Machine.Name)
 
 	providerSpec, err := decodeProviderSpecAndSecret(req.MachineClass, req.Secret)
 	if err != nil {
@@ -59,15 +57,14 @@ func (p *MachinePlugin) CreateMachine(ctx context.Context, req *driver.CreateMac
 
 	providerID, err := p.SPI.CreateMachine(ctx, req.Machine.Name, providerSpec, req.Secret)
 	if err != nil {
-		return nil, prepareErrorf(err, "could not create machine %q", req.Machine.Name)
+		return nil, wrapf(err, "could not create machine %q", req.Machine.Name)
 	}
 
-	response := &driver.CreateMachineResponse{
+	return &driver.CreateMachineResponse{
 		ProviderID:     providerID,
 		NodeName:       req.Machine.Name,
 		LastKnownState: fmt.Sprintf("Created %s", providerID),
-	}
-	return response, nil
+	}, nil
 }
 
 // DeleteMachine handles a machine deletion request
@@ -82,9 +79,8 @@ func (p *MachinePlugin) CreateMachine(ctx context.Context, req *driver.CreateMac
 //                                                Could be helpful to continue operations in future requests.
 //
 func (p *MachinePlugin) DeleteMachine(ctx context.Context, req *driver.DeleteMachineRequest) (*driver.DeleteMachineResponse, error) {
-	// Log messages to track delete request
-	klog.V(2).Infof("DeleteMachine request has been received for %q", req.Machine.Name)
-	defer klog.V(2).Infof("DeleteMachine request has been processed for %q", req.Machine.Name)
+	klog.V(2).Infof("DeleteMachine request received for %q", req.Machine.Name)
+	defer klog.V(2).Infof("DeleteMachine request processed for %q", req.Machine.Name)
 
 	providerSpec, err := decodeProviderSpecAndSecret(req.MachineClass, req.Secret)
 	if err != nil {
@@ -93,13 +89,12 @@ func (p *MachinePlugin) DeleteMachine(ctx context.Context, req *driver.DeleteMac
 
 	providerID, err := p.SPI.DeleteMachine(ctx, req.Machine.Name, req.Machine.Spec.ProviderID, providerSpec, req.Secret)
 	if err != nil {
-		return nil, prepareErrorf(err, "could not delete machine %q", req.Machine.Name)
+		return nil, wrapf(err, "could not delete machine %q", req.Machine.Name)
 	}
 
-	response := &driver.DeleteMachineResponse{
+	return &driver.DeleteMachineResponse{
 		LastKnownState: fmt.Sprintf("Deleted %s", providerID),
-	}
-	return response, nil
+	}, nil
 }
 
 // GetMachineStatus handles a machine get status request
@@ -119,9 +114,8 @@ func (p *MachinePlugin) DeleteMachine(ctx context.Context, req *driver.DeleteMac
 //
 // The request should return a NOT_FOUND (5) status errors code if the machine is not existing
 func (p *MachinePlugin) GetMachineStatus(ctx context.Context, req *driver.GetMachineStatusRequest) (*driver.GetMachineStatusResponse, error) {
-	// Log messages to track start and end of request
-	klog.V(2).Infof("GetMachineStatus request has been received for %q", req.Machine.Name)
-	defer klog.V(2).Infof("GetMachineStatus request has been processed for %q", req.Machine.Name)
+	klog.V(2).Infof("GetMachineStatus request received for %q", req.Machine.Name)
+	defer klog.V(2).Infof("GetMachineStatus request processed for %q", req.Machine.Name)
 
 	providerSpec, err := decodeProviderSpecAndSecret(req.MachineClass, req.Secret)
 	if err != nil {
@@ -130,17 +124,15 @@ func (p *MachinePlugin) GetMachineStatus(ctx context.Context, req *driver.GetMac
 
 	providerID, err := p.SPI.GetMachineStatus(ctx, req.Machine.Name, req.Machine.Spec.ProviderID, providerSpec, req.Secret)
 	if err != nil {
-		return nil, prepareErrorf(err, "could not get status of machine %q", req.Machine.Name)
+		return nil, wrapf(err, "could not get status of machine %q", req.Machine.Name)
 	}
 
-	response := &driver.GetMachineStatusResponse{
+	klog.V(2).Infof("Found machine with provider ID %q for %q", providerID, req.Machine.Name)
+
+	return &driver.GetMachineStatusResponse{
 		ProviderID: providerID,
 		NodeName:   req.Machine.Name,
-	}
-
-	klog.V(2).Infof("Found machine with provider ID %q for %q", response.ProviderID, req.Machine.Name)
-
-	return response, nil
+	}, nil
 }
 
 // ListMachines lists all the machines possibly created by a providerSpec
@@ -157,9 +149,8 @@ func (p *MachinePlugin) GetMachineStatus(ctx context.Context, req *driver.GetMac
 //                                           for all machine's who where possibilly created by this ProviderSpec
 //
 func (p *MachinePlugin) ListMachines(ctx context.Context, req *driver.ListMachinesRequest) (*driver.ListMachinesResponse, error) {
-	// Log messages to track start and end of request
-	klog.V(2).Infof("ListMachines request has been received for %q", req.MachineClass.Name)
-	defer klog.V(2).Infof("ListMachines request has been processed for %q", req.MachineClass.Name)
+	klog.V(2).Infof("ListMachines request received for %q", req.MachineClass.Name)
+	defer klog.V(2).Infof("ListMachines request processed for %q", req.MachineClass.Name)
 
 	providerSpec, err := decodeProviderSpecAndSecret(req.MachineClass, req.Secret)
 	if err != nil {
@@ -168,7 +159,7 @@ func (p *MachinePlugin) ListMachines(ctx context.Context, req *driver.ListMachin
 
 	machineList, err := p.SPI.ListMachines(ctx, providerSpec, req.Secret)
 	if err != nil {
-		return nil, prepareErrorf(err, "could not list machines")
+		return nil, wrapf(err, "could not list machines")
 	}
 
 	klog.V(2).Infof("Found %d machines for %q", len(machineList), req.MachineClass.Name)
@@ -187,9 +178,8 @@ func (p *MachinePlugin) ListMachines(ctx context.Context, req *driver.ListMachin
 // VolumeIDs             []string                             VolumeIDs is a repeated list of VolumeIDs.
 //
 func (p *MachinePlugin) GetVolumeIDs(ctx context.Context, req *driver.GetVolumeIDsRequest) (*driver.GetVolumeIDsResponse, error) {
-	// Log messages to track start and end of request
-	klog.V(2).Infof("GetVolumeIDs request has been received for %q", req.PVSpecs)
-	defer klog.V(2).Infof("GetVolumeIDs request has been processed for %q", req.PVSpecs)
+	klog.V(2).Infof("GetVolumeIDs request received for %q", req.PVSpecs)
+	defer klog.V(2).Infof("GetVolumeIDs request processed for %q", req.PVSpecs)
 
 	return &driver.GetVolumeIDsResponse{}, status.Error(codes.Unimplemented, "")
 }

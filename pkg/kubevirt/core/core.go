@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package core contains the cloud kubevirt specific implementations to manage machines
 package core
 
 import (
@@ -22,8 +21,8 @@ import (
 	"time"
 
 	api "github.com/gardener/machine-controller-manager-provider-kubevirt/pkg/kubevirt/apis"
-	"github.com/gardener/machine-controller-manager-provider-kubevirt/pkg/kubevirt/errors"
 
+	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,7 +35,7 @@ import (
 )
 
 const (
-	// ProviderName specifies the machine controller for kubevirt cloud provider
+	// ProviderName is the kubevirt provider name.
 	ProviderName = "kubevirt"
 )
 
@@ -70,23 +69,22 @@ func (f ServerVersionFactoryFunc) GetServerVersion(secret *corev1.Secret) (strin
 	return f(secret)
 }
 
-// PluginSPIImpl is the real implementation of PluginSPI interface
-// that makes the calls to the provider SDK
+// PluginSPIImpl is the implementation of PluginSPI interface.
 type PluginSPIImpl struct {
 	cf  ClientFactory
 	svf ServerVersionFactory
 }
 
 // NewPluginSPIImpl creates a new PluginSPIImpl with the given ClientFactory and ServerVersionFactory.
-func NewPluginSPIImpl(cf ClientFactory, svf ServerVersionFactory) (*PluginSPIImpl, error) {
+func NewPluginSPIImpl(cf ClientFactory, svf ServerVersionFactory) *PluginSPIImpl {
 	return &PluginSPIImpl{
 		cf:  cf,
 		svf: svf,
-	}, nil
+	}
 }
 
-// CreateMachine creates a Kubevirt virtual machine with the given name and an associated data volume based on the
-// DataVolumeTemplate, using the given provider spec. It also creates a secret where the userdata(cloud-init) are saved and mounted on the VM.
+// CreateMachine creates a machine with the given name, using the given provider spec and secret.
+// Here it creates a kubevirt virtual machine and a secret containing the userdata (cloud-init).
 func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, providerSpec *api.KubeVirtProviderSpec, secret *corev1.Secret) (providerID string, err error) {
 	// Generate a unique name for the userdata secret
 	userDataSecretName := fmt.Sprintf("userdata-%s-%s", machineName, strconv.Itoa(int(time.Now().Unix())))
@@ -94,7 +92,7 @@ func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, pr
 	// Get client and namespace from secret
 	c, namespace, err := p.cf.GetClient(secret)
 	if err != nil {
-		return "", fmt.Errorf("failed to create client: %v", err)
+		return "", errors.Wrap(err, "could not create client")
 	}
 
 	// Build interfaces and networks
@@ -106,7 +104,7 @@ func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, pr
 	// Get Kubernetes version
 	k8sVersion, err := p.svf.GetServerVersion(secret)
 	if err != nil {
-		return "", fmt.Errorf("failed to get server version: %v", err)
+		return "", errors.Wrap(err, "could not get server version")
 	}
 
 	// Build affinity
@@ -115,7 +113,7 @@ func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, pr
 	// Add SSH keys to user data
 	userData, err := addUserSSHKeysToUserData(string(secret.Data["userData"]), providerSpec.SSHKeys)
 	if err != nil {
-		return "", fmt.Errorf("failed to add ssh keys to cloud-init: %v", err)
+		return "", err
 	}
 
 	// Initialize VM labels
@@ -164,7 +162,7 @@ func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, pr
 
 	// Create the VM
 	if err := c.Create(ctx, virtualMachine); err != nil {
-		return "", fmt.Errorf("failed to create VirtualMachine: %v", err)
+		return "", errors.Wrapf(err, "could not create VirtualMachine %q", machineName)
 	}
 
 	// Build the userdata secret
@@ -183,93 +181,113 @@ func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, pr
 
 	// Create the userdata secret
 	if err := c.Create(ctx, userDataSecret); err != nil {
-		return "", fmt.Errorf("failed to create secret for userdata: %v", err)
+		return "", errors.Wrapf(err, "could not create userdata secret %q", userDataSecretName)
 	}
 
+	// Return the VM provider ID
 	return encodeProviderID(machineName), nil
 }
 
-// DeleteMachine deletes the Kubevirt virtual machine with the given name.
+// DeleteMachine deletes the machine with the given name and provider id, using the given provider spec and secret.
+// Here it deletes the kubevirt virtual machine with the given name.
 func (p PluginSPIImpl) DeleteMachine(ctx context.Context, machineName, _ string, _ *api.KubeVirtProviderSpec, secret *corev1.Secret) (foundProviderID string, err error) {
+	// Get client and namespace from secret
 	c, namespace, err := p.cf.GetClient(secret)
 	if err != nil {
-		return "", fmt.Errorf("failed to create client: %v", err)
+		return "", errors.Wrap(err, "could not create client")
 	}
 
+	// Get the VM by name
 	virtualMachine, err := p.getVM(ctx, c, machineName, namespace)
 	if err != nil {
-		if errors.IsMachineNotFoundError(err) {
-			klog.V(2).Infof("skip VirtualMachine evicting, VirtualMachine instance %s is not found", machineName)
+		if IsMachineNotFoundError(err) {
+			klog.V(2).Infof("VirtualMachine %s not found", machineName)
 			return "", nil
 		}
 		return "", err
 	}
 
+	// Delete the VM
 	if err := client.IgnoreNotFound(c.Delete(ctx, virtualMachine)); err != nil {
-		return "", fmt.Errorf("failed to delete VirtualMachine %v: %v", machineName, err)
+		return "", errors.Wrapf(err, "could not delete VirtualMachine %q", machineName)
 	}
+
+	// Return the VM provider ID
 	return encodeProviderID(virtualMachine.Name), nil
 }
 
-// GetMachineStatus fetches the provider id of the Kubevirt virtual machine with the given name.
+// GetMachineStatus returns the provider id of the machine with the given name and provider id, using the given provider spec and secret.
+// Here it returns the provider id of the kubevirt virtual machine with the given name.
 func (p PluginSPIImpl) GetMachineStatus(ctx context.Context, machineName, _ string, _ *api.KubeVirtProviderSpec, secret *corev1.Secret) (foundProviderID string, err error) {
+	// Get client and namespace from secret
 	c, namespace, err := p.cf.GetClient(secret)
 	if err != nil {
-		return "", fmt.Errorf("failed to create client: %v", err)
+		return "", errors.Wrap(err, "could not create client")
 	}
 
+	// Get the VM by name
 	virtualMachine, err := p.getVM(ctx, c, machineName, namespace)
 	if err != nil {
 		return "", err
 	}
 
+	// Return the VM provider ID
 	return encodeProviderID(virtualMachine.Name), nil
 }
 
-// ListMachines lists the provider ids of all Kubevirt virtual machines.
+// ListMachines lists all machines matching the given provider spec and secret.
+// Here it lists all kubevirt virtual machines matching the tags of the given provider spec.
 func (p PluginSPIImpl) ListMachines(ctx context.Context, providerSpec *api.KubeVirtProviderSpec, secret *corev1.Secret) (providerIDList map[string]string, err error) {
+	// Get client and namespace from secret
 	c, namespace, err := p.cf.GetClient(secret)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create client: %v", err)
+		return nil, errors.Wrap(err, "could not create client")
 	}
 
+	// Initialize VM labels
 	var vmLabels = map[string]string{}
 	if len(providerSpec.Tags) > 0 {
 		vmLabels = providerSpec.Tags
 	}
 
+	// List all VMs matching the labels
 	virtualMachineList, err := p.listVMs(ctx, c, namespace, vmLabels)
 	if err != nil {
 		return nil, err
 	}
 
+	// Return a map containing the provider IDs and names of all found VMs
 	var providerIDs = make(map[string]string, len(virtualMachineList.Items))
 	for _, virtualMachine := range virtualMachineList.Items {
 		providerIDs[encodeProviderID(virtualMachine.Name)] = virtualMachine.Name
 	}
-
 	return providerIDs, nil
 }
 
-// ShutDownMachine shuts down the Kubevirt virtual machine with the given name by setting its spec.running field to false.
+// ShutDownMachine shuts down the machine with the given name and provider id, using the given provider spec and secret.
+// Here it shuts down the kubevirt virtual machine with the given name by setting its spec.running field to false.
 func (p PluginSPIImpl) ShutDownMachine(ctx context.Context, machineName, _ string, _ *api.KubeVirtProviderSpec, secret *corev1.Secret) (foundProviderID string, err error) {
+	// Get client and namespace from secret
 	c, namespace, err := p.cf.GetClient(secret)
 	if err != nil {
-		return "", fmt.Errorf("failed to create client: %v", err)
+		return "", errors.Wrap(err, "could not create client")
 	}
 
+	// Get the VM by name
 	virtualMachine, err := p.getVM(ctx, c, machineName, namespace)
 	if err != nil {
 		return "", err
 	}
 
+	// Set the VM spec.running field to false
 	virtualMachine.Spec.Running = pointer.BoolPtr(false)
 	if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
 		return c.Update(ctx, virtualMachine)
 	}); err != nil {
-		return "", fmt.Errorf("failed to update VirtualMachine running state: %v", err)
+		return "", errors.Wrapf(err, "could not update VirtualMachine %q", machineName)
 	}
 
+	// Return the VM provider ID
 	return encodeProviderID(virtualMachine.Name), nil
 }
 
@@ -277,11 +295,11 @@ func (p PluginSPIImpl) getVM(ctx context.Context, c client.Client, machineName, 
 	virtualMachine := &kubevirtv1.VirtualMachine{}
 	if err := c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: machineName}, virtualMachine); err != nil {
 		if apierrors.IsNotFound(err) {
-			return nil, &errors.MachineNotFoundError{
+			return nil, &MachineNotFoundError{
 				Name: machineName,
 			}
 		}
-		return nil, fmt.Errorf("failed to get VirtualMachine: %v", err)
+		return nil, errors.Wrapf(err, "could not get VirtualMachine %q", machineName)
 	}
 	return virtualMachine, nil
 }
@@ -293,7 +311,7 @@ func (p PluginSPIImpl) listVMs(ctx context.Context, c client.Client, namespace s
 		opts = append(opts, client.MatchingLabels(vmLabels))
 	}
 	if err := c.List(ctx, virtualMachineList, opts...); err != nil {
-		return nil, fmt.Errorf("failed to list VirtualMachines: %v", err)
+		return nil, errors.Wrapf(err, "could not list VirtualMachines in namespace %q", namespace)
 	}
 	return virtualMachineList, nil
 }

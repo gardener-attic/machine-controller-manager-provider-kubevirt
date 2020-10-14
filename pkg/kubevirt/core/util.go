@@ -15,13 +15,13 @@
 package core
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
 	api "github.com/gardener/machine-controller-manager-provider-kubevirt/pkg/kubevirt/apis"
 
 	"github.com/Masterminds/semver"
+	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -40,15 +40,15 @@ func GetClient(secret *corev1.Secret) (client.Client, string, error) {
 	}
 	config, err := clientConfig.ClientConfig()
 	if err != nil {
-		return nil, "", fmt.Errorf("could not get REST config from client config: %v", err)
+		return nil, "", errors.Wrap(err, "could not get REST config from client config")
 	}
 	c, err := client.New(config, client.Options{})
 	if err != nil {
-		return nil, "", fmt.Errorf("could not create client from REST config: %v", err)
+		return nil, "", errors.Wrap(err, "could not create client from REST config")
 	}
 	namespace, _, err := clientConfig.Namespace()
 	if err != nil {
-		return nil, "", fmt.Errorf("could not get namespace from client config: %v", err)
+		return nil, "", errors.Wrap(err, "could not get namespace from client config")
 	}
 	return c, namespace, nil
 }
@@ -61,15 +61,15 @@ func GetServerVersion(secret *corev1.Secret) (string, error) {
 	}
 	config, err := clientConfig.ClientConfig()
 	if err != nil {
-		return "", fmt.Errorf("could not get REST config from client config: %v", err)
+		return "", errors.Wrap(err, "could not get REST config from client config")
 	}
 	cs, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		return "", fmt.Errorf("could not create clientset from REST config: %v", err)
+		return "", errors.Wrap(err, "could not create clientset from REST config")
 	}
 	versionInfo, err := cs.ServerVersion()
 	if err != nil {
-		return "", fmt.Errorf("could not get server version: %v", err)
+		return "", errors.Wrap(err, "could not get server version")
 	}
 	return versionInfo.GitVersion, nil
 }
@@ -81,7 +81,7 @@ func getClientConfig(secret *corev1.Secret) (clientcmd.ClientConfig, error) {
 	}
 	clientConfig, err := clientcmd.NewClientConfigFromBytes(kubeconfig)
 	if err != nil {
-		return nil, fmt.Errorf("could not create client config from kubeconfig: %v", err)
+		return nil, errors.Wrap(err, "could not create client config from kubeconfig")
 	}
 	return clientConfig, nil
 }

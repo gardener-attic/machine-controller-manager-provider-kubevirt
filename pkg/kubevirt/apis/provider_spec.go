@@ -20,7 +20,8 @@ import (
 	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 )
 
-// KubeVirtProviderSpec is the spec to be used while parsing the calls.
+// KubeVirtProviderSpec is the kubevirt provider specification.
+// It contains parameters to be used when creating kubevirt VMs.
 type KubeVirtProviderSpec struct {
 	// Region is the VM region name.
 	Region string `json:"region"`
