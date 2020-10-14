@@ -31,6 +31,14 @@ import (
 func ValidateKubevirtProviderSpec(spec *api.KubeVirtProviderSpec) field.ErrorList {
 	errs := field.ErrorList{}
 
+	if spec.Region == "" {
+		errs = append(errs, field.Required(field.NewPath("region"), "cannot be empty"))
+	}
+
+	if spec.Zone == "" {
+		errs = append(errs, field.Required(field.NewPath("zone"), "cannot be empty"))
+	}
+
 	requestsPath := field.NewPath("resources").Child("requests")
 	if spec.Resources.Requests.Memory().IsZero() {
 		errs = append(errs, field.Required(requestsPath.Child("memory"), "cannot be zero"))
@@ -52,14 +60,6 @@ func ValidateKubevirtProviderSpec(spec *api.KubeVirtProviderSpec) field.ErrorLis
 		default:
 			errs = append(errs, field.Invalid(volumePath, volume, "invalid volume, either dataVolume or volumeSource must be specified"))
 		}
-	}
-
-	if spec.Region == "" {
-		errs = append(errs, field.Required(field.NewPath("region"), "cannot be empty"))
-	}
-
-	if spec.Zone == "" {
-		errs = append(errs, field.Required(field.NewPath("zone"), "cannot be empty"))
 	}
 
 	if spec.DNSPolicy != "" {
