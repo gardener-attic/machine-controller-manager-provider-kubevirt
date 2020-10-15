@@ -69,17 +69,33 @@ func (f ServerVersionFactoryFunc) GetServerVersion(secret *corev1.Secret) (strin
 	return f(secret)
 }
 
-// PluginSPIImpl is the implementation of PluginSPI interface.
-type PluginSPIImpl struct {
-	cf  ClientFactory
-	svf ServerVersionFactory
+// Timer returns the current local time.
+type Timer interface {
+	// Now returns the current local time.
+	Now() time.Time
 }
 
-// NewPluginSPIImpl creates a new PluginSPIImpl with the given ClientFactory and ServerVersionFactory.
-func NewPluginSPIImpl(cf ClientFactory, svf ServerVersionFactory) *PluginSPIImpl {
+// TimerFunc is a function that implements Timer.
+type TimerFunc func() time.Time
+
+// Now returns the current local time.
+func (f TimerFunc) Now() time.Time {
+	return f()
+}
+
+// PluginSPIImpl is the implementation of PluginSPI interface.
+type PluginSPIImpl struct {
+	cf    ClientFactory
+	svf   ServerVersionFactory
+	timer Timer
+}
+
+// NewPluginSPIImpl creates a new PluginSPIImpl with the given ClientFactory, ServerVersionFactory, and Timer.
+func NewPluginSPIImpl(cf ClientFactory, svf ServerVersionFactory, timer Timer) *PluginSPIImpl {
 	return &PluginSPIImpl{
-		cf:  cf,
-		svf: svf,
+		cf:    cf,
+		svf:   svf,
+		timer: timer,
 	}
 }
 
@@ -87,7 +103,7 @@ func NewPluginSPIImpl(cf ClientFactory, svf ServerVersionFactory) *PluginSPIImpl
 // Here it creates a kubevirt virtual machine and a secret containing the userdata (cloud-init).
 func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, providerSpec *api.KubeVirtProviderSpec, secret *corev1.Secret) (providerID string, err error) {
 	// Generate a unique name for the userdata secret
-	userDataSecretName := fmt.Sprintf("userdata-%s-%s", machineName, strconv.Itoa(int(time.Now().Unix())))
+	userDataSecretName := fmt.Sprintf("userdata-%s-%s", machineName, strconv.Itoa(int(p.timer.Now().Unix())))
 
 	// Get client and namespace from secret
 	c, namespace, err := p.cf.GetClient(secret)
@@ -140,13 +156,13 @@ func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, pr
 				},
 				Spec: kubevirtv1.VirtualMachineInstanceSpec{
 					Domain: kubevirtv1.DomainSpec{
-						CPU:    providerSpec.CPU,
-						Memory: providerSpec.Memory,
+						Resources: providerSpec.Resources,
+						CPU:       providerSpec.CPU,
+						Memory:    providerSpec.Memory,
 						Devices: kubevirtv1.Devices{
 							Disks:      disks,
 							Interfaces: interfaces,
 						},
-						Resources: providerSpec.Resources,
 					},
 					Affinity:                      affinity,
 					TerminationGracePeriodSeconds: pointer.Int64Ptr(30),
@@ -201,7 +217,7 @@ func (p PluginSPIImpl) DeleteMachine(ctx context.Context, machineName, _ string,
 	virtualMachine, err := p.getVM(ctx, c, machineName, namespace)
 	if err != nil {
 		if IsMachineNotFoundError(err) {
-			klog.V(2).Infof("VirtualMachine %s not found", machineName)
+			klog.V(2).Infof("VirtualMachine %q not found", machineName)
 			return "", nil
 		}
 		return "", err

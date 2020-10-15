@@ -51,6 +51,14 @@ revendor:
 	@env GO111MODULE=on go mod tidy -v
 
 #########################################
+# Rules for code generation
+#########################################
+
+.PHONY: generate
+generate:
+	@env GO111MODULE=on go generate -mod=vendor ./pkg/...
+
+#########################################
 # Rules for testing
 #########################################
 

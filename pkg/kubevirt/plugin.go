@@ -16,6 +16,7 @@ package kubevirt
 
 import (
 	"context"
+	"time"
 
 	api "github.com/gardener/machine-controller-manager-provider-kubevirt/pkg/kubevirt/apis"
 	"github.com/gardener/machine-controller-manager-provider-kubevirt/pkg/kubevirt/core"
@@ -47,6 +48,6 @@ type MachinePlugin struct {
 // NewKubevirtPlugin creates a new kubevirt driver.
 func NewKubevirtPlugin() driver.Driver {
 	return &MachinePlugin{
-		SPI: core.NewPluginSPIImpl(core.ClientFactoryFunc(core.GetClient), core.ServerVersionFactoryFunc(core.GetServerVersion)),
+		SPI: core.NewPluginSPIImpl(core.ClientFactoryFunc(core.GetClient), core.ServerVersionFactoryFunc(core.GetServerVersion), core.TimerFunc(time.Now)),
 	}
 }
