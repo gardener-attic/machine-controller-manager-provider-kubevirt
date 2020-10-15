@@ -15,15 +15,59 @@
 apiVersion: machine.sapcloud.io/v1alpha1
 kind: MachineClass
 metadata:
-  name: test-mc
-  namespace: default # Namespace where the controller would watch
-providerSpec:
-  storageClassName: test-storage-class
-  pvcSize: "10Gi"
-  sourceURL: source-image-url
-  cpus: "1"
-  memory: "4096M"
+  name: test-machine-class
   namespace: default
-secretRef: # If required
+providerSpec:
+  region: local
+  zone: local-1
+  resources:
+    requests:
+      cpu: 1
+      memory: 4096Mi
+    limits:
+      cpu: 2
+      memory: 8Gi
+  rootVolume:
+    pvc:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 8Gi
+      storageClassName: standard
+    source:
+      http:
+        url: https://cloud-images.ubuntu.com/bionic/current/bionic-server-cloudimg-amd64.img
+  additionalVolumes:
+  - dataVolume:
+      pvc:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Gi
+        storageClassName: standard
+      source:
+        blank: {}
+  sshKeys:
+  - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDdOIhYmzCK5DSVLu3b"
+  networks:
+  - name: default/net-conf
+  cpu:
+    cores: 1
+    sockets: 2
+    threads: 1
+  memory:
+    hugepages:
+      pageSize: "2Mi"
+  dnsPolicy: ClusterFirst
+  dnsConfig:
+    nameservers:
+    - 8.8.8.8
+  tags:
+    mcm.gardener.cloud/cluster: shoot--dev--kubevirt,
+    mcm.gardener.cloud/role: node,
+    mcm.gardener.cloud/machineclass: test-machine-class,
+secretRef:
   name: test-secret
-  namespace: default # Namespace where the controller would watch
+  namespace: default

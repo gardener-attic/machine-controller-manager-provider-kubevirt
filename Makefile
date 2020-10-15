@@ -12,11 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-BINARY_PATH         := bin/
 IMAGE_REPOSITORY    := eu.gcr.io/gardener-project/gardener/machine-controller-manager-provider-kubevirt
 IMAGE_TAG           := $(shell cat VERSION)
-PROVIDER_NAME       := Kubevirt
-PROJECT_NAME        := gardener
 CONTROL_NAMESPACE  := default
 CONTROL_KUBECONFIG := dev/target-kubeconfig.yaml
 TARGET_KUBECONFIG  := dev/target-kubeconfig.yaml
@@ -28,18 +25,18 @@ TARGET_KUBECONFIG  := dev/target-kubeconfig.yaml
 .PHONY: start
 start:
 	@GO111MODULE=on go run \
-			cmd/machine-controller/main.go \
-			--control-kubeconfig=$(CONTROL_KUBECONFIG) \
-			--target-kubeconfig=$(TARGET_KUBECONFIG) \
-			--namespace=$(CONTROL_NAMESPACE) \
-			--machine-creation-timeout=20m \
-			--machine-drain-timeout=5m \
-			--machine-health-timeout=10m \
-			--machine-pv-detach-timeout=2m \
-			--machine-safety-apiserver-statuscheck-timeout=30s \
-			--machine-safety-apiserver-statuscheck-period=1m \
-			--machine-safety-orphan-vms-period=30m \
-			--v=3
+		cmd/machine-controller/main.go \
+		--control-kubeconfig=$(CONTROL_KUBECONFIG) \
+		--target-kubeconfig=$(TARGET_KUBECONFIG) \
+		--namespace=$(CONTROL_NAMESPACE) \
+		--machine-creation-timeout=20m \
+		--machine-drain-timeout=5m \
+		--machine-health-timeout=10m \
+		--machine-pv-detach-timeout=2m \
+		--machine-safety-apiserver-statuscheck-timeout=30s \
+		--machine-safety-apiserver-statuscheck-period=1m \
+		--machine-safety-orphan-vms-period=30m \
+		--v=3
 
 #########################################
 # Rules for re-vendoring
@@ -68,6 +65,7 @@ verify: check test
 .PHONY: test
 test:
 	@.ci/test
+
 .PHONY: check
 check:
 	@.ci/check
