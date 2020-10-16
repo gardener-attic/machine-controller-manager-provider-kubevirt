@@ -20,6 +20,9 @@ import (
 	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
 )
 
+// RootDiskName is name of the root disk
+const RootDiskName = "root-disk"
+
 // KubeVirtProviderSpec is the kubevirt provider specification.
 // It contains parameters to be used when creating kubevirt VMs.
 type KubeVirtProviderSpec struct {
@@ -29,6 +32,8 @@ type KubeVirtProviderSpec struct {
 	Zone string `json:"zone"`
 	// Resources specifies the requests and limits for VM resources (CPU and memory).
 	Resources kubevirtv1.ResourceRequirements `json:"resources"`
+	// Devices is the specification of disks and additional high performance options
+	Devices *Devices `json:"devices,omitempty"`
 	// RootVolume is the specification for the root volume of the VM.
 	RootVolume cdicorev1alpha1.DataVolumeSpec `json:"rootVolume"`
 	// AdditionalVolumes is an optional list of additional volumes attached to the VM.
@@ -64,6 +69,8 @@ type KubeVirtProviderSpec struct {
 // AdditionalVolumeSpec represents an additional volume attached to a VM.
 // Only one of its members may be specified.
 type AdditionalVolumeSpec struct {
+	// Name is the additional volume name
+	Name string `json:"name"`
 	// DataVolume is an optional specification of an additional data volume.
 	// +optional
 	DataVolume *cdicorev1alpha1.DataVolumeSpec `json:"dataVolume,omitempty"`
@@ -87,6 +94,22 @@ type VolumeSource struct {
 	// More info: https://kubernetes.io/docs/concepts/configuration/secret/
 	// +optional
 	Secret *kubevirtv1.SecretVolumeSource `json:"secret,omitempty"`
+}
+
+// Devices allows to fine-tune devices attached to KubeVirt VM
+type Devices struct {
+	// Disks allows customizing the disks attached to the VM.
+	// +optional
+	Disks []kubevirtv1.Disk `json:"disks,omitempty"`
+	// Rng specifies whether to have a random number generator from host.
+	// +optional
+	Rng *kubevirtv1.Rng `json:"rng,omitempty"`
+	// BlockMultiQueue specifies whether to enable virtio multi-queue for block devices.
+	// +optional
+	BlockMultiQueue bool `json:"blockMultiQueue,omitempty"`
+	// NetworkInterfaceMultiQueue specifies whether virtual network interfaces configured with a virtio bus will also enable the vhost multi-queue feature.
+	// +optional
+	NetworkInterfaceMultiQueue bool `json:"networkInterfaceMultiqueue,omitempty"`
 }
 
 // NetworkSpec contains information about a network.

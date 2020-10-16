@@ -167,22 +167,23 @@ func buildVolumes(
 	machineName, namespace, userDataSecretName, networkData string,
 	rootVolume cdicorev1alpha1.DataVolumeSpec,
 	additionalVolumes []api.AdditionalVolumeSpec,
+	configuredDisks []kubevirtv1.Disk,
 ) ([]kubevirtv1.Disk, []kubevirtv1.Volume, []cdicorev1alpha1.DataVolume) {
 	var disks []kubevirtv1.Disk
 	var volumes []kubevirtv1.Volume
 	var dataVolumes []cdicorev1alpha1.DataVolume
 
 	// Append a disk, a volume, and a data volume for the root disk
-	disks = append(disks, kubevirtv1.Disk{
-		Name: "rootdisk",
-		DiskDevice: kubevirtv1.DiskDevice{
-			Disk: &kubevirtv1.DiskTarget{
-				Bus: "virtio",
-			},
-		},
-	})
+	var rootDisk kubevirtv1.Disk
+	if d := findDiskByName(api.RootDiskName, configuredDisks); d != nil {
+		rootDisk = *d
+	} else {
+		rootDisk = buildDefaultDisk(api.RootDiskName)
+	}
+
+	disks = append(disks, rootDisk)
 	volumes = append(volumes, kubevirtv1.Volume{
-		Name: "rootdisk",
+		Name: api.RootDiskName,
 		VolumeSource: kubevirtv1.VolumeSource{
 			DataVolume: &kubevirtv1.DataVolumeSource{
 				Name: machineName,
@@ -223,15 +224,14 @@ func buildVolumes(
 		// Generate a unique name for this disk
 		diskName := fmt.Sprintf("disk%d", i)
 
-		// Append a disk for this additional disk
-		disks = append(disks, kubevirtv1.Disk{
-			Name: diskName,
-			DiskDevice: kubevirtv1.DiskDevice{
-				Disk: &kubevirtv1.DiskTarget{
-					Bus: "virtio",
-				},
-			},
-		})
+		var disk kubevirtv1.Disk
+		if d := findDiskByName(volume.Name, configuredDisks); d != nil {
+			disk = *d
+			disk.Name = diskName
+		} else {
+			disk = buildDefaultDisk(diskName)
+		}
+		disks = append(disks, disk)
 
 		switch {
 		case volume.DataVolume != nil:
@@ -269,6 +269,26 @@ func buildVolumes(
 	}
 
 	return disks, volumes, dataVolumes
+}
+
+func findDiskByName(name string, disks []kubevirtv1.Disk) *kubevirtv1.Disk {
+	for _, disk := range disks {
+		if name == disk.Name {
+			return &disk
+		}
+	}
+	return nil
+}
+
+func buildDefaultDisk(name string) kubevirtv1.Disk {
+	return kubevirtv1.Disk{
+		Name: name,
+		DiskDevice: kubevirtv1.DiskDevice{
+			Disk: &kubevirtv1.DiskTarget{
+				Bus: "virtio",
+			},
+		},
+	}
 }
 
 const (

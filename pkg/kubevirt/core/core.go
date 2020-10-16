@@ -114,9 +114,12 @@ func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, pr
 	// Build interfaces and networks
 	interfaces, networks, networkData := buildNetworks(providerSpec.Networks)
 
+	var devices api.Devices
+	if providerSpec.Devices != nil {
+		devices = *providerSpec.Devices
+	}
 	// Build disks, volumes, and data volumes
-	disks, volumes, dataVolumes := buildVolumes(machineName, namespace, userDataSecretName, networkData, providerSpec.RootVolume, providerSpec.AdditionalVolumes)
-
+	disks, volumes, dataVolumes := buildVolumes(machineName, namespace, userDataSecretName, networkData, providerSpec.RootVolume, providerSpec.AdditionalVolumes, devices.Disks)
 	// Get Kubernetes version
 	k8sVersion, err := p.svf.GetServerVersion(secret)
 	if err != nil {
@@ -160,8 +163,11 @@ func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, pr
 						CPU:       providerSpec.CPU,
 						Memory:    providerSpec.Memory,
 						Devices: kubevirtv1.Devices{
-							Disks:      disks,
-							Interfaces: interfaces,
+							Disks:                      disks,
+							Interfaces:                 interfaces,
+							Rng:                        devices.Rng,
+							BlockMultiQueue:            &devices.BlockMultiQueue,
+							NetworkInterfaceMultiQueue: &devices.NetworkInterfaceMultiQueue,
 						},
 					},
 					Affinity:                      affinity,
@@ -175,7 +181,6 @@ func (p PluginSPIImpl) CreateMachine(ctx context.Context, machineName string, pr
 			DataVolumeTemplates: dataVolumes,
 		},
 	}
-
 	// Create the VM
 	if err := c.Create(ctx, virtualMachine); err != nil {
 		return "", errors.Wrapf(err, "could not create VirtualMachine %q", machineName)

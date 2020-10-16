@@ -21,6 +21,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/tools/clientcmd"
 	cdicorev1alpha1 "kubevirt.io/containerized-data-importer/pkg/apis/core/v1alpha1"
@@ -50,6 +51,10 @@ func ValidateKubevirtProviderSpec(spec *api.KubeVirtProviderSpec) field.ErrorLis
 
 	for i, volume := range spec.AdditionalVolumes {
 		volumePath := field.NewPath("additionalVolumes").Index(i)
+
+		if volume.Name == "" {
+			errs = append(errs, field.Required(volumePath.Child("name"), "cannot be empty"))
+		}
 
 		switch {
 		case volume.DataVolume != nil:
@@ -81,7 +86,44 @@ func ValidateKubevirtProviderSpec(spec *api.KubeVirtProviderSpec) field.ErrorLis
 		}
 	}
 
+	if spec.Devices != nil {
+		disksPath := field.NewPath("devices").Child("disks")
+		disks := sets.NewString()
+
+		// +1 because of root-disk which is required and unique
+		volumesLen := len(spec.AdditionalVolumes) + 1
+
+		if disksLen := len(spec.Devices.Disks); disksLen > volumesLen {
+			errs = append(errs, field.Invalid(disksPath, disksLen, "the number of disks is larger than the number of volumes"))
+		}
+
+		for i, disk := range spec.Devices.Disks {
+			if disk.BootOrder != nil {
+				errs = append(errs, field.Forbidden(disksPath.Index(i).Child("bootOrder"), "cannot be set"))
+			}
+
+			if disk.Name == "" {
+				errs = append(errs, field.Required(disksPath.Index(i).Child("name"), "cannot be empty"))
+			} else if disks.Has(disk.Name) {
+				errs = append(errs, field.Invalid(disksPath.Index(i).Child("name"), disk.Name, "already exists"))
+				continue
+			} else if !hasVolumeWithName(disk.Name, spec.AdditionalVolumes) && disk.Name != api.RootDiskName {
+				errs = append(errs, field.Invalid(disksPath.Index(i).Child("name"), disk.Name, "no matching volume"))
+			}
+			disks.Insert(disk.Name)
+		}
+	}
+
 	return errs
+}
+
+func hasVolumeWithName(diskName string, volumes []api.AdditionalVolumeSpec) bool {
+	for _, volume := range volumes {
+		if volume.Name == diskName {
+			return true
+		}
+	}
+	return false
 }
 
 // ValidateKubevirtProviderSecret validates the given kubevirt provider secret.

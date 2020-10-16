@@ -87,6 +87,29 @@ var _ = Describe("PluginSPIImpl", func() {
 					corev1.ResourceMemory: resource.MustParse("8Gi"),
 				},
 			},
+			Devices: &api.Devices{
+				Disks: []kubevirtv1.Disk{
+					{
+						Name: api.RootDiskName,
+						DiskDevice: kubevirtv1.DiskDevice{
+							Disk: &kubevirtv1.DiskTarget{
+								Bus: "virtio",
+							},
+						},
+						DedicatedIOThread: pointer.BoolPtr(true),
+					},
+					{
+						Name: "volume-1",
+						DiskDevice: kubevirtv1.DiskDevice{
+							Disk: &kubevirtv1.DiskTarget{
+								Bus: "virtio",
+							},
+						},
+						DedicatedIOThread: pointer.BoolPtr(true),
+					},
+				},
+				BlockMultiQueue: true,
+			},
 			RootVolume: cdicorev1alpha1.DataVolumeSpec{
 				PVC: &corev1.PersistentVolumeClaimSpec{
 					AccessModes: []corev1.PersistentVolumeAccessMode{
@@ -107,6 +130,7 @@ var _ = Describe("PluginSPIImpl", func() {
 			},
 			AdditionalVolumes: []api.AdditionalVolumeSpec{
 				{
+					Name: "volume-1",
 					DataVolume: &cdicorev1alpha1.DataVolumeSpec{
 						PVC: &corev1.PersistentVolumeClaimSpec{
 							AccessModes: []corev1.PersistentVolumeAccessMode{
@@ -115,6 +139,25 @@ var _ = Describe("PluginSPIImpl", func() {
 							Resources: corev1.ResourceRequirements{
 								Requests: corev1.ResourceList{
 									corev1.ResourceStorage: resource.MustParse("10Gi"),
+								},
+							},
+							StorageClassName: pointer.StringPtr(storageClassName),
+						},
+						Source: cdicorev1alpha1.DataVolumeSource{
+							Blank: &cdicorev1alpha1.DataVolumeBlankImage{},
+						},
+					},
+				},
+				{
+					Name: "volume-2",
+					DataVolume: &cdicorev1alpha1.DataVolumeSpec{
+						PVC: &corev1.PersistentVolumeClaimSpec{
+							AccessModes: []corev1.PersistentVolumeAccessMode{
+								"ReadWriteOnce",
+							},
+							Resources: corev1.ResourceRequirements{
+								Requests: corev1.ResourceList{
+									corev1.ResourceStorage: resource.MustParse("20Gi"),
 								},
 							},
 							StorageClassName: pointer.StringPtr(storageClassName),
@@ -184,12 +227,13 @@ var _ = Describe("PluginSPIImpl", func() {
 							Devices: kubevirtv1.Devices{
 								Disks: []kubevirtv1.Disk{
 									{
-										Name: "rootdisk",
+										Name: api.RootDiskName,
 										DiskDevice: kubevirtv1.DiskDevice{
 											Disk: &kubevirtv1.DiskTarget{
 												Bus: "virtio",
 											},
 										},
+										DedicatedIOThread: pointer.BoolPtr(true),
 									},
 									{
 										Name: "cloudinitdisk",
@@ -206,8 +250,19 @@ var _ = Describe("PluginSPIImpl", func() {
 												Bus: "virtio",
 											},
 										},
+										DedicatedIOThread: pointer.BoolPtr(true),
+									},
+									{
+										Name: "disk1",
+										DiskDevice: kubevirtv1.DiskDevice{
+											Disk: &kubevirtv1.DiskTarget{
+												Bus: "virtio",
+											},
+										},
 									},
 								},
+								BlockMultiQueue:            pointer.BoolPtr(true),
+								NetworkInterfaceMultiQueue: pointer.BoolPtr(false),
 								Interfaces: []kubevirtv1.Interface{
 									{
 										Name: "default",
@@ -249,7 +304,7 @@ var _ = Describe("PluginSPIImpl", func() {
 						TerminationGracePeriodSeconds: pointer.Int64Ptr(30),
 						Volumes: []kubevirtv1.Volume{
 							{
-								Name: "rootdisk",
+								Name: api.RootDiskName,
 								VolumeSource: kubevirtv1.VolumeSource{
 									DataVolume: &kubevirtv1.DataVolumeSource{
 										Name: machineName,
@@ -278,6 +333,14 @@ ethernets:
 								VolumeSource: kubevirtv1.VolumeSource{
 									DataVolume: &kubevirtv1.DataVolumeSource{
 										Name: machineName + "-0",
+									},
+								},
+							},
+							{
+								Name: "disk1",
+								VolumeSource: kubevirtv1.VolumeSource{
+									DataVolume: &kubevirtv1.DataVolumeSource{
+										Name: machineName + "-1",
 									},
 								},
 							},
@@ -316,6 +379,13 @@ ethernets:
 							Namespace: namespace,
 						},
 						Spec: *providerSpec.AdditionalVolumes[0].DataVolume,
+					},
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      machineName + "-1",
+							Namespace: namespace,
+						},
+						Spec: *providerSpec.AdditionalVolumes[1].DataVolume,
 					},
 				},
 			},
