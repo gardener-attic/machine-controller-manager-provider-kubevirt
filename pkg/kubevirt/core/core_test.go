@@ -48,7 +48,7 @@ const (
 	region            = "local"
 	zone              = "local-1"
 	storageClassName  = "standard"
-	imageSourceURL    = "https://cloud-images.ubuntu.com/xenial/current/xenial-server-cloudimg-amd64-disk1.img"
+	imageSourceURL    = "https://cloud-images.ubuntu.com/bionic/current/bionic-server-cloudimg-amd64.img"
 	networkName       = "default/net-conf"
 	sshPublicKey      = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDdOIhYmzCK5DSVLu3b"
 	machineProviderID = ProviderName + "://" + machineName

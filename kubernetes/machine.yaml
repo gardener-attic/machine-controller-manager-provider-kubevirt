@@ -20,5 +20,5 @@ metadata:
 spec:
   class:
     kind: MachineClass
-    name: test-mc
+    name: test-machine-class
     namespace: default
