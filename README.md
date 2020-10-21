@@ -2,6 +2,8 @@
 
 This project contains the external [Machine Controller Manager](https://github.com/gardener/machine-controller-manager) plugin (driver) implementation for the [KubeVirt](https://kubevirt.io) provider. It is intended to be used in combination with the [Gardener Extension for KubeVirt provider](https://github.com/gardener/gardener-extension-provider-kubevirt).
 
+For more information about Gardener integration with KubeVirt see [this gardener.cloud blog post](https://gardener.cloud/blog/2020-10/00/). 
+
 ## Prerequisites
 
 * A provider cluster with [KubeVirt](https://kubevirt.io) and [CDI](https://github.com/kubevirt/containerized-data-importer) installed, and a user with read and write permissions on KubeVirt, CDI, and Kubernetes core resources in a certain namespace of this cluster. 
