@@ -42,6 +42,7 @@ machine-controller-manager-provider-kubevirt:
   jobs:
     head-update:
       traits:
+        component_descriptor: ~
         draft_release: ~
     pull-request:
       traits:
